@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Photo Album</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="root">
+    <!-- Full-screen photo -->
+    <div class="photo-wrapper">
+      <img id="photo" src="" alt="Album photo">
+      <!-- Swipe helpers (invisible, just for visual feedback) -->
+      <div class="swipe-left"></div>
+      <div class="swipe-right"></div>
+    </div>
+
+    <!-- Tap-to-start overlay -->
+    <div id="tap-overlay">
+      <h1>Photo Album</h1>
+      <p>Tap screen to begin</p>
+      <div class="tap-inst">or swipe left/right</div>
+    </div>
+
+    <!-- Photo counter -->
+    <div id="photo-counter">1 / 1000</div>
+
+    <!-- Background music element -->
+    <audio id="bg-audio" src="music.mp3" loop preload="auto"></audio>
+
+    <!-- Floating mute/unmute toggle -->
+    <button id="music-toggle" aria-label="Toggle music">🔊</button>
+
+    <!-- Navigation buttons (optional, for desktop) -->
+    <button id="prev" aria-label="Previous photo">❮</button>
+    <button id="next" aria-label="Next photo">❯</button>
+  </div>
+
+  <script src="js/slideshow.js"></script>
+</body>
+</html>

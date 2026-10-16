@@ -1,0 +1,22 @@
+# Generated files (run resize.js to create these)
+node_modules/
+photos/
+
+# User's original photos (do not commit)
+raw-photos/
+
+# Development files
+test-process.js
+test-resize.js
+create-test-imgs.py
+*.ts
+
+# Vercel config (local only)
+.vercel/
+
+# Media files (user-provided)
+music.mp3
+
+# Docs
+DEPLOYMENT_GUIDE.md
+LICENSE.md
