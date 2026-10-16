@@ -1,0 +1,4 @@
+node_modules/
+*.ts
+test-resize.js
+DEPLOYMENT_GUIDE.md
