@@ -1,14 +1,15 @@
 {
   "name": "sumit-photo-album",
   "version": "1.0.0",
-  "description": "Mobile-first QR photo album with tap/swipe navigation, auto-slideshow, and background music.",
+  "description": "Mobile-first QR photo album with tap/swipe navigation, auto-slideshow, background music, and a local photo/music manager.",
   "main": "server.js",
   "scripts": {
     "process": "node resize.js",
     "start": "node server.js",
     "serve": "node server.js",
-    "check": "node --check resize.js && node --check server.js && node --check js/slideshow.js",
-    "test": "node --check resize.js && node --check server.js && node --check js/slideshow.js"
+    "deploy": "vercel --prod",
+    "check": "node --check resize.js && node --check server.js && node --check js/slideshow.js && node --check js/admin.js",
+    "test": "node --check resize.js && node --check server.js && node --check js/slideshow.js && node --check js/admin.js"
   },
   "keywords": [
     "photo-album",
@@ -20,10 +21,16 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/amitmourya-133/sumit-photo-album.git"
+    "url": "git+https://github.com/amitmourya-133/sumit-photo-album.git"
   },
   "type": "commonjs",
   "dependencies": {
+    "busboy": "^1.6.0",
     "sharp": "^0.35.5"
-  }
+  },
+  "devDependencies": {},
+  "bugs": {
+    "url": "https://github.com/amitmourya-133/sumit-photo-album/issues"
+  },
+  "homepage": "https://github.com/amitmourya-133/sumit-photo-album#readme"
 }

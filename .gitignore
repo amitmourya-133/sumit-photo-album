@@ -14,8 +14,11 @@ create-test-imgs.py
 # Vercel config (local only)
 .vercel/
 
-# Media files (user-provided)
+# Legacy media file (use the music/ folder instead)
 music.mp3
+
+# Temporary files
+*.tmp
 
 # Docs
 DEPLOYMENT_GUIDE.md

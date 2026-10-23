@@ -6,3 +6,13 @@ test-process.js
 test-resize.js
 create-test-imgs.py
 DEPLOYMENT_GUIDE.md
+server.js
+resize.js
+admin.html
+js/admin.js
+css/admin.css
+package.json
+package-lock.json
+README.md
+.gitignore
+.vercelignore
