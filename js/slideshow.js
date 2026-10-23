@@ -144,11 +144,6 @@
         document.body.addEventListener('mouseup', handleEnd);
     }
 
-    function updateActivePhoto(index) {
-        if (totalPhotos === 0) return;
-        currentIndex = index;
-    }
-
     // ---- Init ----
     async function initApp() {
         photoEl = $('photo');
@@ -163,12 +158,9 @@
         if (totalPhotos === 0) {
             photoEl.alt = 'No photos available';
             photoCounter.textContent = '0 / 0';
-            if (tapOverlay) tapOverlay.style.display = 'none';
-            // Show placeholder or hide
-            const overlay = $('tap-overlay');
-            if (overlay) {
-                overlay.innerHTML = '<h1>No Photos</h1><p>Please add photos to the album</p>';
-                overlay.style.display = 'flex';
+            if (tapOverlay) {
+                tapOverlay.innerHTML = '<h1>No Photos</h1><p>Please add photos to the album</p>';
+                tapOverlay.style.display = 'flex';
             }
             return;
         }
@@ -207,4 +199,3 @@
         initApp();
     }
 })();
-EOF_CONTENT")
