@@ -84,6 +84,16 @@ npx vercel --prod
 - Ensure `photos.json` and the `photos/` folder are generated before deploying.
 - After deploying, verify the production URL loads the homepage, CSS, JS, `photos.json`, and images.
 
+## QR code
+
+The live album is available at <https://sumit-photo-album.vercel.app>.
+A ready-to-print QR code for that URL is included as `qr-code.png` (600x600).
+To regenerate it for a different URL:
+
+```powershell
+npx --yes qrcode -o qr-code.png -w 600 "https://your-deployment-url"
+```
+
 ## Troubleshooting
 
 - **Blank page / counter shows `0 / 0`**: `photos.json` is missing or empty. Add images to
