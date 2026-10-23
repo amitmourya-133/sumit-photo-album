@@ -1,14 +1,27 @@
 {
-  "name": "photo-pp",
+  "name": "sumit-photo-album",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Mobile-first QR photo album with tap/swipe navigation, auto-slideshow, and background music.",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "process": "node resize.js",
+    "start": "node server.js",
+    "serve": "node server.js",
+    "check": "node --check resize.js && node --check server.js && node --check js/slideshow.js",
+    "test": "node --check resize.js && node --check server.js && node --check js/slideshow.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "photo-album",
+    "slideshow",
+    "qr-code",
+    "vercel"
+  ],
+  "author": "amitmourya-133",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amitmourya-133/sumit-photo-album.git"
+  },
   "type": "commonjs",
   "dependencies": {
     "sharp": "^0.35.5"

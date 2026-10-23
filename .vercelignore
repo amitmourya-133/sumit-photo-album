@@ -1,0 +1,8 @@
+node_modules
+raw-photos
+.git
+.vercel
+test-process.js
+test-resize.js
+create-test-imgs.py
+DEPLOYMENT_GUIDE.md
