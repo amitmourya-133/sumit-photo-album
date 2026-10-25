@@ -1,14 +1,29 @@
+// Vercel Blob client upload
 let photos = [];
 let musicFile = null;
+let photoFiles = [];
 
 const dropzone = document.getElementById('dropzone');
 const photoInput = document.getElementById('photoInput');
+const folderInput = document.getElementById('folderInput');
 const photoGrid = document.getElementById('photoGrid');
 const addMorePhotos = document.getElementById('addMorePhotos');
+const selectFolderBtn = document.getElementById('selectFolderBtn');
+const photoStats = document.getElementById('photoStats');
+const photoCountEl = document.getElementById('photoCount');
+const photoSizeEl = document.getElementById('photoSize');
 
-dropzone.addEventListener('click', () => photoInput.click());
+dropzone.addEventListener('click', (e) => {
+  if (e.target.id === 'selectFolderBtn') return;
+  photoInput.click();
+});
 photoInput.addEventListener('change', handlePhotoSelect);
 addMorePhotos.addEventListener('click', () => photoInput.click());
+selectFolderBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  folderInput.click();
+});
+folderInput.addEventListener('change', handlePhotoSelect);
 
 dropzone.addEventListener('dragover', (e) => {
   e.preventDefault();
@@ -28,43 +43,63 @@ dropzone.addEventListener('drop', (e) => {
 
 function handlePhotoSelect(e) {
   handleFiles(e.target.files);
+  e.target.value = '';
 }
+
 function handleFiles(files) {
   Array.from(files).forEach(file => {
-    if (!file.type.startsWith('image/')) return;
+    if (!file.type.startsWith('image/')) {
+      if (!file.name.match(/\.(jpe?g|png|webp|heic|avif)$/i)) return;
+    }
+    if (file.size > 50 * 1024 * 1024) return;
+    photoFiles.push(file);
     const reader = new FileReader();
     reader.onload = (e) => {
-      photos.push({ file, url: e.target.result, name: file.name });
+      photos.push({ url: e.target.result, name: file.name });
       renderPhotos();
+      updateStats();
     };
     reader.readAsDataURL(file);
   });
 }
 
+function updateStats() {
+  if (photoFiles.length === 0) {
+    photoStats.style.display = 'none';
+    return;
+  }
+  photoStats.style.display = 'block';
+  photoCountEl.textContent = photoFiles.length;
+  const totalBytes = photoFiles.reduce((sum, f) => sum + f.size, 0);
+  photoSizeEl.textContent = (totalBytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
 function renderPhotos() {
   photoGrid.innerHTML = '';
-  photos.forEach((p, idx) => {
+  const showCount = Math.min(photos.length, 200);
+  for (let idx = 0; idx < showCount; idx++) {
+    const p = photos[idx];
     const div = document.createElement('div');
     div.className = 'photo-item';
-    div.innerHTML = `
-      <img src="${p.url}" alt="${p.name}">
-      <button class="photo-remove" onclick="removePhoto(${idx})">×</button>
-      ${idx > 0 ? `<button class="photo-move left" onclick="movePhoto(${idx}, -1)">←</button>` : ''}
-      ${idx < photos.length - 1 ? `<button class="photo-move right" onclick="movePhoto(${idx}, 1)">→</button>` : ''}
-    `;
+    div.innerHTML = '<img src="' + p.url + '" alt="' + p.name + '" loading="lazy"><button class="photo-remove" onclick="removePhoto(' + idx + ')">×</button>';
     photoGrid.appendChild(div);
-  });
+  }
+  if (photos.length > 200) {
+    const more = document.createElement('div');
+    more.style.cssText = 'grid-column:1/-1;text-align:center;padding:12px;color:#666';
+    more.textContent = '+ ' + (photos.length - 200) + ' more photos selected';
+    photoGrid.appendChild(more);
+  }
 }
-window.removePhoto = (idx) => { photos.splice(idx, 1); renderPhotos(); };
-window.movePhoto = (idx, dir) => {
-  const tmp = photos[idx + dir];
-  photos[idx + dir] = photos[idx];
-  photos[idx] = tmp;
+window.removePhoto = function(idx) {
+  photoFiles.splice(idx, 1);
+  photos.splice(idx, 1);
   renderPhotos();
+  updateStats();
 };
 
 document.getElementById('toStep2').addEventListener('click', () => {
-  if (photos.length === 0) return alert('Please upload at least one photo');
+  if (photoFiles.length === 0) return alert('Please upload at least one photo');
   document.getElementById('step1').style.display = 'none';
   document.getElementById('step2').style.display = 'block';
   document.querySelectorAll('.step').forEach((s, i) => s.classList.toggle('active', i <= 1));
@@ -107,11 +142,12 @@ uploadMusicBtn.addEventListener('click', () => musicInput.click());
 musicInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  if (!file.type.includes('mpeg') && !file.name.toLowerCase().endsWith('.mp3')) {
-    alert('Please upload MP3 files only');
+  if (!file.type.includes('mpeg') && !file.name.toLowerCase().endsWith('.mp3') && !file.type.includes('mp4')) {
+    alert('Please upload MP3 or supported audio files');
     musicInput.value = '';
     return;
   }
+  if (file.size > 100 * 1024 * 1024) return alert('Audio file too large (max 100MB)');
   musicFile = file;
   musicPreview.src = URL.createObjectURL(file);
   musicName.textContent = file.name;
@@ -127,74 +163,110 @@ removeMusic.addEventListener('click', () => {
 });
 
 function updateSummary() {
-  document.getElementById('sumPhotos').textContent = photos.length;
+  document.getElementById('sumPhotos').textContent = photoFiles.length;
   document.getElementById('sumMusic').textContent = musicFile ? musicFile.name : 'No music';
   const title = document.getElementById('albumTitle').value || 'Photo Album';
   const dur = document.getElementById('duration').value;
-  const trans = document.getElementById('transition').value;
-  document.getElementById('sumSettings').textContent = '"' + title + '" • ' + dur + 's • ' + trans + ' transition';
+  document.getElementById('sumSettings').textContent = '"' + title + '" • ' + dur + 's per photo';
 }
 
 document.getElementById('generateBtn').addEventListener('click', generateAlbum);
 
-async function safeJson(res) {
-  const text = await res.text();
-  const contentType = res.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
+async function uploadWithRetry(file, pathname, attempts) {
+  attempts = attempts || 3;
+  for (let i = 0; i < attempts; i++) {
     try {
-      return { ok: res.ok, status: res.status, data: JSON.parse(text) };
+      const res = await fetch('/api/blob/token', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ type: 'blob.generate-client-token', pathname: pathname, clientPayload: null })
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'token failed');
+      const form = new FormData();
+      form.append('file', file);
+      form.append('token', data.token || data.clientToken || '');
+      // Try Vercel Blob upload API
+      const up = await fetch('https://blob.vercel-storage.com/upload', { method: 'POST', body: form });
+      if (up.ok) {
+        const j = await up.json();
+        if (j.url) return { url: j.url };
+      }
+      // Fallback to our upload endpoint
+      const fd = new FormData();
+      fd.append('file', file);
+      const up2 = await fetch('/api/album/upload-direct', { method: 'POST', body: fd });
+      const j2 = await up2.json();
+      if (up2.ok && j2.url) return { url: j2.url };
+      throw new Error('upload failed');
     } catch (e) {
-      return { ok: res.ok, status: res.status, data: { error: text.slice(0, 200) } };
+      if (i === attempts - 1) throw e;
+      await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
     }
   }
-  return { ok: res.ok, status: res.status, data: { error: text.slice(0, 200) || ('HTTP ' + res.status) } };
 }
 
 async function generateAlbum() {
-  if (photos.length === 0) return alert('Please upload at least one photo');
+  if (photoFiles.length === 0) return alert('Please upload at least one photo');
   const btn = document.getElementById('generateBtn');
   const status = document.getElementById('generateStatus');
+  const progress = document.getElementById('uploadProgress');
+  const progressText = document.getElementById('progressText');
+  const progressPercent = document.getElementById('progressPercent');
+  const progressBar = document.getElementById('progressBar');
+  const progressDetails = document.getElementById('progressDetails');
+
   btn.disabled = true;
   btn.textContent = '⏳ Creating Album...';
-  status.textContent = 'Uploading photos and music...';
+  status.textContent = 'Starting uploads...';
+  progress.style.display = 'block';
 
   try {
-    const formData = new FormData();
-    photos.forEach(p => formData.append('photos', p.file));
-    if (musicFile) formData.append('music', musicFile);
+    const photoUrls = [];
+    const concurrency = 3;
+    let completed = 0;
+    let failed = 0;
 
-    const uploadRes = await fetch('/api/album/upload', { method: 'POST', body: formData });
-    const uploadResult = await safeJson(uploadRes);
-    if (!uploadResult.ok || uploadResult.data.error) {
-      throw new Error(uploadResult.data.error || ('Upload failed: ' + uploadResult.status));
+    for (let i = 0; i < photoFiles.length; i += concurrency) {
+      const batch = photoFiles.slice(i, i + concurrency);
+      const results = await Promise.allSettled(batch.map((file, idx) => 
+        uploadWithRetry(file, 'albums/photos/' + Date.now() + '-' + (i+idx) + '-' + file.name.replace(/[^a-zA-Z0-9.-]/g,'_'))
+      ));
+      results.forEach((r) => {
+        if (r.status === 'fulfilled' && r.value && r.value.url) {
+          photoUrls.push(r.value.url);
+          completed++;
+        } else {
+          failed++;
+        }
+      });
+      const pct = Math.min(60, Math.round((completed / photoFiles.length) * 60));
+      progressBar.style.width = pct + '%';
+      progressPercent.textContent = pct + '%';
+      progressText.textContent = 'Uploading photos...';
+      progressDetails.textContent = completed + ' / ' + photoFiles.length + ' completed' + (failed ? ', ' + failed + ' failed' : '');
     }
 
-    const uploads = uploadResult.data.uploads || [];
-    const failedUploads = uploads.filter(u => u && u.error);
-    if (failedUploads.length > 0) {
-      throw new Error('Some files failed to upload: ' + failedUploads.map(f => f.name + ' (' + f.error + ')').join(', '));
-    }
-
-    const photoUrls = uploads.filter(u => u && u.url && (!musicFile || u.name !== musicFile.name || u.type?.startsWith('image/'))).map(u => u.url);
-    if (photoUrls.length !== photos.length) {
-      const imageUploads = uploads.filter(u => u && u.url && u.type && u.type.startsWith('image/'));
-      if (imageUploads.length === photos.length) {
-        photoUrls.splice(0, photoUrls.length, ...imageUploads.map(u => u.url));
-      } else {
-        throw new Error('Not all photos uploaded successfully. Uploaded ' + imageUploads.length + ' of ' + photos.length);
-      }
-    }
+    if (completed === 0) throw new Error('All photo uploads failed');
+    if (failed > 0) throw new Error(failed + ' photo(s) failed to upload. Please retry.');
 
     let musicObj = null;
     if (musicFile) {
-      const musicUpload = uploads.find(u => u && u.url && u.name === musicFile.name && (!u.type || u.type.includes('audio') || u.name.toLowerCase().endsWith('.mp3')));
-      if (!musicUpload || !musicUpload.url) {
+      progressText.textContent = 'Uploading music...';
+      progressBar.style.width = '80%';
+      progressPercent.textContent = '80%';
+      try {
+        const mRes = await uploadWithRetry(musicFile, 'albums/music/' + Date.now() + '-' + musicFile.name.replace(/[^a-zA-Z0-9.-]/g,'_'));
+        musicObj = { src: mRes.url, title: musicFile.name };
+      } catch (e) {
         throw new Error('Music upload failed');
       }
-      musicObj = { src: musicUpload.url, title: musicFile.name };
     }
 
-    status.textContent = 'Saving album metadata...';
+    progressText.textContent = 'Saving album...';
+    progressBar.style.width = '90%';
+    progressPercent.textContent = '90%';
+
     const albumRes = await fetch('/api/album', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -203,7 +275,7 @@ async function generateAlbum() {
         photos: photoUrls,
         music: musicObj,
         settings: {
-          duration: parseInt(document.getElementById('duration').value) || 5,
+          duration: Math.max(3, Math.min(5, parseInt(document.getElementById('duration').value) || 3)),
           transition: document.getElementById('transition').value,
           musicVolume: parseFloat(document.getElementById('musicVolume').value) || 0.7,
           openingMsg: document.getElementById('openingMsg').value,
@@ -211,16 +283,20 @@ async function generateAlbum() {
         }
       })
     });
-    const albumResult = await safeJson(albumRes);
-    if (!albumResult.ok || albumResult.data.error) {
-      throw new Error(albumResult.data.error || ('Failed to create album: ' + albumResult.status));
-    }
+    const text = await albumRes.text();
+    let albumData;
+    try { albumData = JSON.parse(text); } catch(e) { throw new Error(text.slice(0, 200)); }
+    if (!albumRes.ok || albumData.error) throw new Error(albumData.error || 'Failed to create album');
+
+    progressBar.style.width = '100%';
+    progressPercent.textContent = '100%';
+    progressText.textContent = 'Complete!';
 
     status.textContent = 'Generating QR code...';
-    const qrDataUrl = await QRCode.toDataURL(albumResult.data.url, { width: 300, margin: 2, color: { dark: '#000000', light: '#FFFFFF' } });
+    const qrDataUrl = await QRCode.toDataURL(albumData.url, { width: 300, margin: 2, color: { dark: '#000000', light: '#FFFFFF' } });
     document.getElementById('qrImg').src = qrDataUrl;
-    document.getElementById('albumLink').value = albumResult.data.url;
-    document.getElementById('openAlbum').href = albumResult.data.url;
+    document.getElementById('albumLink').value = albumData.url;
+    document.getElementById('openAlbum').href = albumData.url;
     document.getElementById('result').style.display = 'block';
 
     document.getElementById('downloadQR').onclick = () => {
@@ -230,7 +306,7 @@ async function generateAlbum() {
       a.click();
     };
     document.getElementById('copyLink').onclick = () => {
-      navigator.clipboard.writeText(albumResult.data.url).then(() => {
+      navigator.clipboard.writeText(albumData.url).then(() => {
         const old = document.getElementById('copyLink').textContent;
         document.getElementById('copyLink').textContent = '✅ Copied!';
         setTimeout(() => document.getElementById('copyLink').textContent = old, 2000);
@@ -245,5 +321,6 @@ async function generateAlbum() {
     btn.disabled = false;
     btn.textContent = '🎉 GENERATE MY ALBUM & QR CODE';
     status.textContent = '';
+    document.getElementById('uploadProgress').style.display = 'none';
   }
 }

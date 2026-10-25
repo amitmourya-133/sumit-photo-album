@@ -5,6 +5,7 @@
     { "src": "**/*", "use": "@vercel/static" }
   ],
   "routes": [
+    { "src": "/api/blob/token", "dest": "/api/blob/token.js" },
     { "src": "/api/album/upload", "dest": "/api/album/upload.js" },
     { "src": "/api/album/([a-zA-Z0-9_-]+)", "dest": "/api/album/[id].js?id=$1" },
     { "src": "/api/album", "dest": "/api/album.js" },
