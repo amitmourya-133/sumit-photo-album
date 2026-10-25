@@ -288,6 +288,16 @@
       progressBar.style.width = '90%';
       progressPercent.textContent = '90%';
 
+      const settings = {
+            duration: Math.max(3, Math.min(5, parseInt(document.getElementById('duration').value) || 3)),
+            transition: document.getElementById('transition').value,
+            musicVolume: parseFloat(document.getElementById('musicVolume').value) || 0.7,
+            openingMsg: document.getElementById('openingMsg').value || '',
+            romanticTheme: !!document.getElementById('romanticTheme').checked,
+            autoTheme: !!document.getElementById('autoTheme').checked,
+            frameStyle: document.getElementById('frameStyle').value,
+            photoFit: 'contain'
+          };
       const albumRes = await fetch('/api/album', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -295,13 +305,7 @@
           title: document.getElementById('albumTitle').value || 'Photo Album',
           photos: photoUrls,
           music: musicObj,
-          settings: {
-            duration: Math.max(3, Math.min(5, parseInt(document.getElementById('duration').value) || 3)),
-            transition: document.getElementById('transition').value,
-            musicVolume: parseFloat(document.getElementById('musicVolume').value) || 0.7,
-            openingMsg: document.getElementById('openingMsg').value || '',
-            romanticTheme: !!document.getElementById('romanticTheme').checked
-          }
+          settings
         })
       });
       const albumData = await safeJson(albumRes);

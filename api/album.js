@@ -93,6 +93,10 @@ module.exports = async (req, res) => {
       settingsSafe.musicVolume = Math.max(0, Math.min(1, Number(settingsSafe.musicVolume) || 0.7));
       settingsSafe.openingMsg = typeof settingsSafe.openingMsg === 'string' ? settingsSafe.openingMsg.slice(0, 200) : '';
       settingsSafe.romanticTheme = !!settingsSafe.romanticTheme;
+      settingsSafe.autoTheme = settingsSafe.autoTheme !== false;
+      const ALLOWED_FRAMES = ['automatic', 'wedding', 'romantic', 'travel', 'celebration', 'family', 'minimal'];
+      settingsSafe.frameStyle = ALLOWED_FRAMES.indexOf(settingsSafe.frameStyle) !== -1 ? settingsSafe.frameStyle : 'automatic';
+      settingsSafe.photoFit = 'contain';
       const titleSafe = (typeof title === 'string' ? title.trim() : '').slice(0, 120) || 'Photo Album';
 
       const id = crypto.randomUUID();

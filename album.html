@@ -8,29 +8,129 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #000; overflow: hidden; height: 100dvh; }
+    body { font-family: 'Inter', sans-serif; background: #0c0a0e; overflow: hidden; height: 100dvh; }
     #album { width: 100vw; height: 100dvh; position: relative; }
-    #photo { width: 100%; height: 100%; object-fit: cover; transition: opacity 0.4s; }
-    #photo.fade { opacity: 0; }
-    #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.75); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; cursor: pointer; z-index: 10; }
+
+    /* Blurred, live-photo backdrop (no crop of the main image; it is only ambience) */
+    .backdrop-layer {
+      position: fixed; inset: -80px;
+      background-size: cover; background-position: center;
+      filter: blur(42px) brightness(0.5) saturate(1.25);
+      opacity: 0; transition: opacity 0.7s ease; z-index: 0; pointer-events: none;
+    }
+    .backdrop-layer.is-on { opacity: 1; }
+    #veil { position: fixed; inset: 0; z-index: 1; pointer-events: none;
+      background: radial-gradient(120% 120% at 50% 38%, rgba(24,14,24,0.10) 0%, rgba(8,6,10,0.62) 100%); }
+
+    #stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 2; }
+
+    /* Decorative frame. Decorations live in the mat (padding) area, never over the photo. */
+    #frame {
+      position: relative;
+      opacity: 0; transform: scale(0.985);
+      transition: opacity 0.45s ease, transform 0.45s ease, width 0.3s ease, height 0.3s ease, background 0.4s ease;
+      will-change: opacity, transform;
+    }
+    #frame.is-visible { opacity: 1; transform: none; }
+    #frame img { width: 100%; height: 100%; display: block; box-shadow: 0 16px 44px rgba(0,0,0,0.38); background: #111; transition: opacity 0.4s; }
+    #frame img.fade { opacity: 0; }
+    #frame .corner {
+      position: absolute; width: 58px; height: 58px; opacity: 0.95;
+      background-repeat: no-repeat; background-size: contain; pointer-events: none;
+    }
+    #frame .corner.tl { top: 6px; left: 6px; }
+    #frame .corner.tr { top: 6px; right: 6px; transform: scaleX(-1); }
+    #frame .corner.bl { bottom: 6px; left: 6px; transform: scaleY(-1); }
+    #frame .corner.br { bottom: 6px; right: 6px; transform: scale(-1); }
+
+    #frame[data-frame="wedding"] {
+      background: linear-gradient(150deg, #fdf8ef 0%, #f6ecd9 55%, #f0e2c8 100%);
+      border: 1px solid #d8c49a;
+    }
+    #frame[data-frame="wedding"] .corner {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%23c7a34f' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M8 48 Q16 40 14 28 Q26 32 30 22'/%2e%3Ccircle cx='32' cy='16' r='4' fill='%23c7a34f' stroke='none'/%3E%3Ccircle cx='20' cy='24' r='3' fill='%23e8d9b0' stroke='none'/%3E%3Cpath d='M8 34 Q10 20 22 12' stroke='%23b39447'/%3E%3C/g%3E%3C/svg%3E");
+    }
+    #frame[data-frame="romantic"] {
+      background: linear-gradient(150deg, #fff1f4 0%, #fbe4ea 55%, #f6d5de 100%);
+      border: 1px solid #e3b7c2;
+    }
+    #frame[data-frame="romantic"] .corner {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%23d98c9f' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M10 46 Q22 42 24 28'/%3E%3Cpath d='M24 28 Q18 26 16 20 Q24 20 26 26 Q28 20 34 18 Q32 26 24 28 Z' fill='%23f0a9bd' stroke='none'/%3E%3Cpath d='M10 34 Q12 22 22 16' stroke='%23e8a7b8'/%3E%3C/g%3E%3C/svg%3E");
+    }
+    #frame[data-frame="travel"] {
+      background: linear-gradient(150deg, #f4f1e8 0%, #e9e4d2 55%, #dfd8c0 100%);
+      border: 1px solid #b9ab8a;
+    }
+    #frame[data-frame="travel"] .corner {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%237a8f97' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='24' cy='24' r='12'/%3E%3Cpath d='M24 12 L27 22 L24 32 L21 22 Z' fill='%23466570' stroke='none'/%3E%3Cpath d='M10 44 Q14 38 20 36' stroke='%239bb3a8'/%3E%3C/g%3E%3C/svg%3E");
+    }
+    #frame[data-frame="celebration"] {
+      background: linear-gradient(150deg, #fff9ec 0%, #fdeed3 55%, #f9dfb8 100%);
+      border: 1px solid #e6c98f;
+    }
+    #frame[data-frame="celebration"] .corner {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'%3E%3Cg fill='%23e0a13f'%3E%3Ccircle cx='14' cy='42' r='3'/%3E%3Ccircle cx='24' cy='34' r='2.5' fill='%23d96d5a'/%3E%3Ccircle cx='34' cy='24' r='3' fill='%234f9d8b'/%3E%3Ccircle cx='20' cy='16' r='2' fill='%238364b8'/%3E%3Crect x='30' y='38' width='4' height='7' rx='2' transform='rotate(24 32 41)' fill='%23c96f43'/%3E%3Crect x='40' y='14' width='4' height='7' rx='2' transform='rotate(-18 42 17)' fill='%23e0a13f'/%3E%3C/g%3E%3C/svg%3E");
+    }
+    #frame[data-frame="family"] {
+      background: linear-gradient(150deg, #f7f4ef 0%, #eee7db 55%, #e5dcc9 100%);
+      border: 1px solid #cbbfa4;
+    }
+    #frame[data-frame="family"] .corner {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'%3E%3Cg fill='%23a6906b'%3E%3Ccircle cx='12' cy='44' r='2.4'/%3E%3Ccircle cx='18' cy='38' r='1.8' fill='%23bfa781'/%3E%3Ccircle cx='25' cy='30' r='2.2' fill='%2397815e'/%3E%3Cpath d='M10 52 Q18 46 28 42' stroke='%23b3a179' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E");
+    }
+    #frame[data-frame="nature"] {
+      background: linear-gradient(150deg, #f2f5f0 0%, #e5ece2 55%, #d8e2d3 100%);
+      border: 1px solid #a9bb9f;
+    }
+    #frame[data-frame="nature"] .corner {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%236f8f6f' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M8 48 Q20 44 26 30'/%3E%3Cpath d='M14 42 q4 -2 5 -7 M18 37 q4 -3 4 -8 M22 32 q4 -3 3 -8'/%3E%3C/g%3E%3C/svg%3E");
+    }
+    #frame[data-frame="minimal"] {
+      background: linear-gradient(150deg, #f4f2ee 0%, #eae7e1 100%);
+      border: 1px solid #cfc9c0;
+    }
+
+    #frame .corner { display: none; }
+    #frame[data-frame="wedding"] .corner,
+    #frame[data-frame="romantic"] .corner,
+    #frame[data-frame="travel"] .corner,
+    #frame[data-frame="celebration"] .corner,
+    #frame[data-frame="family"] .corner,
+    #frame[data-frame="nature"] .corner { display: block; }
+
+    #counter { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.55); color: white; padding: 6px 16px; border-radius: 20px; font-size: 0.9rem; z-index: 5; }
+    #controls { position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; z-index: 5; }
+    .ctrl { background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 48px; height: 48px; font-size: 1.2rem; cursor: pointer; }
+    #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; z-index: 6; }
+    #loading.hidden { display: none; }
+    #notfound { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; padding: 20px; z-index: 6; }
+    #notfound.visible { display: flex; }
+    #notfound a { color: #ff6b9d; margin-top: 20px; }
+    #overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.72); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; cursor: pointer; z-index: 10; }
     #overlay.hidden { display: none; }
     #overlay h1 { font-size: 2rem; margin-bottom: 12px; padding: 0 20px; }
     #playMusicBtn { margin-top: 20px; padding: 12px 24px; background: #ff6b9d; color: white; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; display: none; }
-    #counter { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); color: white; padding: 6px 16px; border-radius: 20px; font-size: 0.9rem; z-index: 5; }
-    #controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; z-index: 5; }
-    .ctrl { background: rgba(255,255,255,0.9); border: none; border-radius: 50%; width: 48px; height: 48px; font-size: 1.2rem; cursor: pointer; }
-    #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
-    #loading.hidden { display: none; }
-    #notfound { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; padding: 20px; }
-    #notfound.visible { display: flex; }
-    #notfound a { color: #ff6b9d; margin-top: 20px; }
     .romantic { background: linear-gradient(135deg, #ffe4e9 0%, #ffb6c1 100%); }
+    @media (max-width: 520px) {
+      #frame .corner { width: 44px; height: 44px; }
+      #counter { top: 12px; }
+      #controls { bottom: 18px; }
+      .ctrl { width: 42px; height: 42px; }
+    }
   </style>
 </head>
 <body>
   <div id="album">
-    <img id="photo" alt="Photo" decoding="async" loading="eager">
-    <div id="loading">Loading album...</div>
+    <div class="backdrop-layer" id="backdropA"></div>
+    <div class="backdrop-layer" id="backdropB"></div>
+    <div id="veil"></div>
+    <div id="stage">
+      <div id="frame" data-frame="minimal">
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+        <img id="photo" alt="Photo" decoding="async" crossOrigin="anonymous">
+      </div>
+    </div>
     <div id="overlay">
       <h1 id="albumTitle">Photo Album</h1>
       <p id="albumMsg">Tap to begin</p>
@@ -43,12 +143,14 @@
       <button class="ctrl" id="next" aria-label="Next">▶</button>
     </div>
     <audio id="audio" loop preload="auto"></audio>
+    <div id="loading">Loading album...</div>
     <div id="notfound">
       <h1>Album Not Found</h1>
       <p>This album may have been deleted or the link is incorrect.</p>
       <a href="/create.html">Create Your Own Album</a>
     </div>
   </div>
+  <script src="js/frames.js"></script>
   <script>
     const params = new URLSearchParams(location.search);
     const id = params.get('id') || (location.pathname.split('/album/')[1] || '').split('?')[0];
@@ -62,7 +164,97 @@
     const audio = document.getElementById('audio');
     const notfound = document.getElementById('notfound');
     const playMusicBtn = document.getElementById('playMusicBtn');
-    let album = null, idx = 0, timer = null, playing = true, photos = [];
+    const frame = document.getElementById('frame');
+    const backdropA = document.getElementById('backdropA');
+    const backdropB = document.getElementById('backdropB');
+    let album = null, idx = 0, timer = null, playing = true, photos = [], activeBackdrop = backdropA;
+    let natural = { w: 0, h: 0 };
+
+    function themeFor(src) {
+      const settings = (album && album.settings) || {};
+      const manual = settings.frameStyle && settings.frameStyle !== 'automatic' ? settings.frameStyle : null;
+      if (manual) return manual;
+      if (settings.autoTheme === false) return 'minimal';
+      let cat = 'minimal';
+      if (window.PhotoFrames) {
+        try { cat = PhotoFrames.classifyFromImage(photo) || 'minimal'; } catch (e) { cat = 'minimal'; }
+      }
+      return cat;
+    }
+
+    function padFor(theme) {
+      const vw = window.innerWidth;
+      const base = theme === 'minimal' || theme === 'nature' ? 22 : 34;
+      return Math.round(vw < 520 ? Math.max(14, base * 0.72) : base);
+    }
+
+    function layoutPhoto() {
+      if (!natural.w || !natural.h) return;
+      const theme = frame.getAttribute('data-frame') || 'minimal';
+      const pad = padFor(theme);
+      frame.style.padding = pad + 'px';
+      const availW = Math.max(120, window.innerWidth - 2 * pad - 16);
+      const availH = Math.max(120, window.innerHeight - 2 * pad - 16);
+      const s = Math.min(availW / natural.w, availH / natural.h);
+      const pw = Math.floor(natural.w * s);
+      const ph = Math.floor(natural.h * s);
+      frame.style.width = (pw + 2 * pad) + 'px';
+      frame.style.height = (ph + 2 * pad) + 'px';
+    }
+
+    function placeBackdrop(src) {
+      if (!src) return;
+      const incoming = activeBackdrop === backdropA ? backdropB : backdropA;
+      incoming.style.backgroundImage = 'url("' + src + '")';
+      requestAnimationFrame(() => {
+        incoming.classList.add('is-on');
+        activeBackdrop.classList.remove('is-on');
+        activeBackdrop = incoming;
+      });
+    }
+
+    function refreshFrame() {
+      const theme = themeFor(photo.currentSrc || photo.src || '');
+      if (frame.getAttribute('data-frame') !== theme) frame.setAttribute('data-frame', theme);
+      layoutPhoto();
+    }
+
+    function update() {
+      if (!photos.length) {
+        frame.classList.remove('is-visible');
+        counter.textContent = '0 / 0';
+        return;
+      }
+      idx = ((idx % photos.length) + photos.length) % photos.length;
+      photo.classList.add('fade');
+      setTimeout(() => {
+        photo.decoding = 'async';
+        photo.loading = 'eager';
+        photo.src = photos[idx];
+        placeBackdrop(photos[idx]);
+        counter.textContent = (idx + 1) + ' / ' + photos.length;
+        setTimeout(() => photo.classList.remove('fade'), 50);
+      }, 200);
+    }
+
+    function nextPhoto() { if (!photos.length) return; idx++; update(); resetTimer(); }
+    function prevPhoto() { if (!photos.length) return; idx--; update(); resetTimer(); }
+    function resetTimer() {
+      if (timer) clearInterval(timer);
+      if (!photos.length) return;
+      const d = Math.max(3, Math.min(5, album?.settings?.duration || 3)) * 1000;
+      timer = setInterval(nextPhoto, d);
+    }
+
+    if (photo.complete && photo.naturalWidth) {
+      natural = { w: photo.naturalWidth, h: photo.naturalHeight };
+    }
+    photo.addEventListener('load', () => {
+      natural = { w: photo.naturalWidth || 1, h: photo.naturalHeight || 1 };
+      frame.classList.add('is-visible');
+      refreshFrame();
+    });
+    window.addEventListener('resize', layoutPhoto);
 
     async function load() {
       try {
@@ -77,37 +269,19 @@
           audio.src = album.music.src;
           audio.volume = typeof album.settings?.musicVolume === 'number' ? album.settings.musicVolume : 0.7;
         }
+        // Warm the crossOrigin image cache for the first photo to avoid a
+        // second download when the frame's crossOrigin <img> requests it.
+        if (photos.length) {
+          const w = new Image();
+          w.crossOrigin = 'anonymous';
+          w.src = photos[0];
+        }
         loading.classList.add('hidden');
         update();
       } catch(e) {
         loading.classList.add('hidden');
         notfound.classList.add('visible');
       }
-    }
-
-    function update() {
-      if (!photos.length) {
-        counter.textContent = '0 / 0';
-        return;
-      }
-      idx = ((idx % photos.length) + photos.length) % photos.length;
-      photo.classList.add('fade');
-      setTimeout(() => {
-        photo.src = photos[idx];
-        photo.decoding = 'async';
-        photo.loading = 'eager';
-        counter.textContent = (idx + 1) + ' / ' + photos.length;
-        setTimeout(() => photo.classList.remove('fade'), 50);
-      }, 200);
-    }
-
-    function nextPhoto() { if (!photos.length) return; idx++; update(); resetTimer(); }
-    function prevPhoto() { if (!photos.length) return; idx--; update(); resetTimer(); }
-    function resetTimer() {
-      if (timer) clearInterval(timer);
-      if (!photos.length) return;
-      const d = Math.max(3, Math.min(5, album?.settings?.duration || 3)) * 1000;
-      timer = setInterval(nextPhoto, d);
     }
 
     async function startMusic() {
