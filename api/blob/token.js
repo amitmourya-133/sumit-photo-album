@@ -1,4 +1,7 @@
-const { handleUpload } = require('@vercel/blob/client');
+// Uses a local, bundled copy of the @vercel/blob client's server helper so
+// production builds of the function always resolve it, independent from the
+// package's sub-path exports tracing.
+const { handleUpload } = require('../../lib/blob-client/client.cjs');
 
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
@@ -59,6 +62,10 @@ module.exports = async (req, res) => {
       sendJson(res, 400, { error: e.message });
       return;
     }
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      sendJson(res, 503, { error: 'Missing BLOB_READ_WRITE_TOKEN. Add a Vercel Blob read-write token in Vercel project environment variables.' });
+      return;
+    }
     const jsonResponse = await handleUpload({
       body,
       request: req,
@@ -87,6 +94,6 @@ module.exports = async (req, res) => {
   } catch (error) {
     console.error('api/blob/token failed:', error && error.message ? error.message : 'unknown');
     const message = error && error.message ? error.message : 'Token generation failed.';
-    sendJson(res, message && message.indexOf('BLOB_READ_WRITE_TOKEN') > -1 ? 503 : 400, { error: message });
+    sendJson(res, 400, { error: message });
   }
 };

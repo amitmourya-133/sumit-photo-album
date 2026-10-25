@@ -1,0 +1,5 @@
+{
+  "name": "blob-client-embedded",
+  "version": "2.8.2-compatible",
+  "main": "./client.cjs"
+}
