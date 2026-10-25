@@ -22,16 +22,18 @@
   async function blobPut(pathname, body, accessToken) {
     const storeId = parseStoreId(accessToken);
     if (!storeId) throw new Error('Could not parse upload token.');
-    const contentType = body.type || 'application/octet-stream';
+    // Header set must match @vercel/blob/client exactly. Extra headers such as
+    // x-content-type / x-add-random-suffix are NOT sent by the browser SDK and
+    // make the Blob control plane's CORS preflight fail ("Failed to fetch").
+    // Content type and random suffix are enforced server-side via the client
+    // token (onBeforeGenerateToken), not by browser headers.
     const headers = {
       'authorization': 'Bearer ' + accessToken,
       'x-api-version': BLOB_API_VERSION,
       'x-api-blob-request-id': `${storeId}:${Date.now()}:${randomSegment()}`,
       'x-api-blob-request-attempt': '0',
       'x-vercel-blob-store-id': storeId,
-      'x-vercel-blob-access': 'public',
-      'x-content-type': contentType,
-      'x-add-random-suffix': '1'
+      'x-vercel-blob-access': 'public'
     };
     const url = `${BLOB_API_URL}/?pathname=${encodeURIComponent(pathname)}`;
     const res = await fetch(url, { method: 'PUT', body, headers });
