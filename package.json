@@ -25,17 +25,9 @@
   },
   "type": "commonjs",
   "dependencies": {
-    "@upstash/redis": "^1.35.3",
     "@vercel/blob": "^2.8.2",
-    "@vercel/kv": "^3.0.0",
-    "async-retry": "^1.3.3",
-    "busboy": "^1.6.0",
-    "is-buffer": "^2.0.5",
-    "is-node-process": "^1.2.0",
     "qrcode": "^1.5.4",
-    "sharp": "^0.35.5",
-    "throttleit": "^2.1.0",
-    "uuid": "^14.0.3"
+    "sharp": "^0.35.5"
   },
   "bugs": {
     "url": "https://github.com/amitmourya-133/sumit-photo-album/issues"

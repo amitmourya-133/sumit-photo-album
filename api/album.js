@@ -1,5 +1,5 @@
-const { kv } = require('@vercel/kv');
-const { v4: uuidv4 } = require('uuid');
+const redis = require('../lib/redis-rest');
+const crypto = require('crypto');
 
 const CHUNK_SIZE = 350;
 const MAX_PHOTOS = 5000;
@@ -57,12 +57,8 @@ module.exports = async (req, res) => {
       res.end();
       return;
     }
-    if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+    if (!redis.isConfigured()) {
       sendJson(res, 503, { error: 'Missing KV_REST_API_URL or KV_REST_API_TOKEN. Connect Upstash Redis (Vercel KV) in Vercel Storage settings.' });
-      return;
-    }
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      sendJson(res, 503, { error: 'Missing BLOB_READ_WRITE_TOKEN. Add the Vercel Blob read-write token in environment variables.' });
       return;
     }
 
@@ -99,7 +95,7 @@ module.exports = async (req, res) => {
       settingsSafe.romanticTheme = !!settingsSafe.romanticTheme;
       const titleSafe = (typeof title === 'string' ? title.trim() : '').slice(0, 120) || 'Photo Album';
 
-      const id = uuidv4();
+      const id = crypto.randomUUID();
       if (photos.length > CHUNK_SIZE) {
         const chunks = [];
         for (let i = 0; i < photos.length; i += CHUNK_SIZE) chunks.push(photos.slice(i, i + CHUNK_SIZE));
@@ -113,8 +109,11 @@ module.exports = async (req, res) => {
           settings: settingsSafe,
           createdAt: new Date().toISOString()
         };
-        await kv.set(`album:${id}:meta`, meta);
-        for (let c = 0; c < chunks.length; c++) await kv.set(`album:${id}:chunk:${c}`, chunks[c]);
+        const commands = [['set', `album:${id}:meta`, JSON.stringify(meta)]];
+        for (let c = 0; c < chunks.length; c++) {
+          commands.push(['set', `album:${id}:chunk:${c}`, JSON.stringify(chunks[c])]);
+        }
+        await redis.pipeline(commands);
       } else {
         const album = {
           id,
@@ -124,7 +123,7 @@ module.exports = async (req, res) => {
           settings: settingsSafe,
           createdAt: new Date().toISOString()
         };
-        await kv.set(`album:${id}`, album);
+        await redis.setJSON(`album:${id}`, album);
       }
 
       const url = `https://${req.headers.host || 'sumit-photo-album.vercel.app'}/album/${id}`;

@@ -1,4 +1,4 @@
-const { kv } = require('@vercel/kv');
+const redis = require('../../lib/redis-rest');
 
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
       sendJson(res, 405, { error: 'Method not allowed. Use GET.' });
       return;
     }
-    if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+    if (!redis.isConfigured()) {
       sendJson(res, 503, { error: 'Missing KV_REST_API_URL or KV_REST_API_TOKEN. Connect Upstash Redis (Vercel KV) in Vercel Storage settings.' });
       return;
     }
@@ -35,7 +35,7 @@ module.exports = async (req, res) => {
       sendJson(res, 400, { error: 'Missing album id' });
       return;
     }
-    const album = await kv.get(`album:${id}`);
+    const album = await redis.getJSON(`album:${id}`);
     if (album && album.photos && !album.chunked) {
       sendJson(res, 200, {
         id: album.id,
@@ -47,16 +47,27 @@ module.exports = async (req, res) => {
       });
       return;
     }
-    const meta = (await kv.get(`album:${id}:meta`)) || album;
+    const meta = (await redis.getJSON(`album:${id}:meta`)) || album;
     if (!meta || !meta.id) {
       sendJson(res, 404, { error: 'Album not found' });
       return;
     }
-    const chunksCount = Number(await kv.get(`album:${id}:chunks`)) || meta.chunkCount || 0;
+    const chunksCount = meta.chunkCount || 0;
     let photos = [];
-    for (let c = 0; c < chunksCount; c++) {
-      const chunk = await kv.get(`album:${id}:chunk:${c}`);
-      if (Array.isArray(chunk)) photos = photos.concat(chunk);
+    if (chunksCount > 0) {
+      const commands = [];
+      for (let c = 0; c < chunksCount; c++) commands.push(['get', `album:${id}:chunk:${c}`]);
+      const results = await redis.pipeline(commands);
+      for (const raw of results) {
+        if (typeof raw === 'string') {
+          try {
+            const chunk = JSON.parse(raw);
+            if (Array.isArray(chunk)) photos = photos.concat(chunk);
+          } catch (e) {
+            // ignore malformed chunk
+          }
+        }
+      }
     }
     if (!photos.length) photos = meta.photos || [];
     sendJson(res, 200, {
