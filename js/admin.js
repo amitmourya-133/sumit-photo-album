@@ -650,11 +650,10 @@
       if (!state.apiOk && !state.authorized) {
         showAuthWarning('The management API is not reachable or not authorized. '
           + 'On localhost, start "npm start". On Vercel, set ADMIN_API_KEY environment variable.');
-        return;
+        // Still try to load data even without full authorization
       }
 
-      if (state.apiOk || state.authorized) {
-        try {
+      try {
           await loadPhotos();
         } catch (e) {
           setStatus('photo-status', e.message, 'error');

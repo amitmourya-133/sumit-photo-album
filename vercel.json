@@ -10,6 +10,9 @@
     { "src": "/api/album/upload", "dest": "/api/album/upload.js" },
     { "src": "/api/album/([a-zA-Z0-9_-]+)", "dest": "/api/album/[id].js?id=$1" },
     { "src": "/api/album", "dest": "/api/album.js" },
+    { "src": "/api/photos", "dest": "/api/photos.js" },
+    { "src": "/api/music", "dest": "/api/music.js" },
+    { "src": "/api/health", "dest": "/api/health.js" },
     { "src": "/album/([a-zA-Z0-9_-]+)", "dest": "/album.html?id=$1" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
