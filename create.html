@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Your Photo Album</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/create.css">
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <h1>📸 Photo Album Maker</h1>
+      <p>Create a beautiful slideshow, add music, generate a QR code</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="steps">
+      <div class="step active" data-step="1"><span class="step-num">1</span> Photos</div>
+      <div class="step" data-step="2"><span class="step-num">2</span> Music</div>
+      <div class="step" data-step="3"><span class="step-num">3</span> Customize</div>
+      <div class="step" data-step="4"><span class="step-num">4</span> Generate QR</div>
+    </div>
+
+    <!-- Step 1 -->
+    <section class="panel" id="step1">
+      <h2>Upload Photos</h2>
+      <p class="muted">Drag & drop or click to select JPG, PNG, WebP images</p>
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="photoInput" multiple accept="image/jpeg,image/png,image/webp">
+        <div class="dropzone-content">
+          <div class="drop-icon">📁</div>
+          <p><strong>Click to upload</strong> or drag and drop</p>
+          <p class="muted small">Up to many photos</p>
+        </div>
+      </div>
+      <div class="photo-grid" id="photoGrid"></div>
+      <div class="actions">
+        <button class="btn secondary" id="addMorePhotos">+ Add More Photos</button>
+        <button class="btn primary" id="toStep2">Next: Add Music →</button>
+      </div>
+    </section>
+
+    <!-- Step 2 -->
+    <section class="panel" id="step2" style="display:none">
+      <h2>Add Background Music</h2>
+      <p class="muted">Upload an MP3 file (optional). Mobile browsers may require tapping to play.</p>
+      <div class="music-upload">
+        <input type="file" id="musicInput" accept="audio/mpeg,audio/mp3">
+        <button class="btn primary" id="uploadMusicBtn">🎵 Upload Song</button>
+        <button class="btn secondary" id="removeMusic" style="display:none">Remove Song</button>
+      </div>
+      <div class="music-player" id="musicPlayer" style="display:none">
+        <p><strong id="musicName"></strong></p>
+        <audio id="musicPreview" controls></audio>
+      </div>
+      <p class="muted small">You can continue without music if you prefer</p>
+      <div class="actions">
+        <button class="btn secondary" id="backToStep1">← Back</button>
+        <button class="btn primary" id="toStep3">Next: Customize →</button>
+      </div>
+    </section>
+
+    <!-- Step 3 -->
+    <section class="panel" id="step3" style="display:none">
+      <h2>Customize Your Album</h2>
+      <div class="form-grid">
+        <label>
+          <span>Album Title</span>
+          <input type="text" id="albumTitle" placeholder="Our Special Moments" maxlength="60">
+        </label>
+        <label>
+          <span>Photo Display Duration (seconds)</span>
+          <input type="number" id="duration" value="5" min="2" max="30">
+        </label>
+        <label>
+          <span>Transition Effect</span>
+          <select id="transition">
+            <option value="fade">Fade</option>
+            <option value="slide">Slide</option>
+            <option value="zoom">Zoom</option>
+          </select>
+        </label>
+        <label>
+          <span>Music Volume</span>
+          <input type="range" id="musicVolume" min="0" max="1" step="0.1" value="0.7">
+        </label>
+        <label class="full">
+          <span>Opening Message (optional)</span>
+          <input type="text" id="openingMsg" placeholder="Tap to begin our story..." maxlength="80">
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" id="romanticTheme"> <span>Romantic Theme</span>
+        </label>
+      </div>
+      <div class="actions">
+        <button class="btn secondary" id="backToStep2">← Back</button>
+        <button class="btn primary" id="toStep4">Next: Generate QR Code →</button>
+      </div>
+    </section>
+
+    <!-- Step 4 -->
+    <section class="panel" id="step4" style="display:none">
+      <h2>Generate Your Album</h2>
+      <p class="muted">Review and create your shareable album with QR code</p>
+      <div class="summary">
+        <div>📷 <strong id="sumPhotos">0</strong> photos</div>
+        <div>🎵 <span id="sumMusic">No music</span></div>
+        <div>🎨 <span id="sumSettings"></span></div>
+      </div>
+      <div class="generate-section">
+        <button class="btn generate" id="generateBtn">🎉 GENERATE MY ALBUM & QR CODE</button>
+        <p id="generateStatus" class="muted"></p>
+      </div>
+      <div class="result" id="result" style="display:none">
+        <h3>✅ Your Album is Ready!</h3>
+        <div class="qr-box">
+          <img id="qrImg" alt="QR Code" src="">
+          <p><strong>Scan to view on any phone</strong></p>
+        </div>
+        <div class="link-box">
+          <input type="text" id="albumLink" readonly>
+          <button class="btn secondary" id="copyLink">📋 Copy Link</button>
+        </div>
+        <div class="result-actions">
+          <a class="btn primary" id="openAlbum" target="_blank">🔗 Open Album</a>
+          <button class="btn secondary" id="downloadQR">⬇️ Download QR Code (PNG)</button>
+          <button class="btn secondary" id="createAnother">➕ Create Another Album</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn secondary" id="backToStep3">← Back</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script src="js/create.js"></script>
+</body>
+</html>

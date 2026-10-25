@@ -25,12 +25,18 @@
   },
   "type": "commonjs",
   "dependencies": {
+    "@vercel/blob": "^2.8.2",
+    "@vercel/kv": "^3.0.0",
     "busboy": "^1.6.0",
-    "sharp": "^0.35.5"
+    "qrcode": "^1.5.4",
+    "sharp": "^0.35.5",
+    "uuid": "^14.0.3"
   },
-  "devDependencies": {},
   "bugs": {
     "url": "https://github.com/amitmourya-133/sumit-photo-album/issues"
   },
-  "homepage": "https://github.com/amitmourya-133/sumit-photo-album#readme"
+  "homepage": "https://github.com/amitmourya-133/sumit-photo-album#readme",
+  "devDependencies": {
+    "@types/node": "^26.6.5"
+  }
 }
