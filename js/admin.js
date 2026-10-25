@@ -10,7 +10,10 @@
     active: 0,
     dragSrc: null,
     previewSrc: '',
-    apiOk: false
+    apiOk: false,
+    authorized: false,
+    isProduction: false,
+    startTime: 0
   };
 
   function setStatus(id, message, kind) {
@@ -20,11 +23,38 @@
     el.dataset.kind = kind || '';
   }
 
-  async function api(path, options) {
-    const res = await fetch(path, options);
+  function showAuthWarning(message) {
+    const warning = $('api-warning');
+    const authStatus = $('auth-status');
+    if (warning) {
+      warning.hidden = false;
+      warning.textContent = message || '';
+    }
+    if (authStatus) {
+      authStatus.textContent = message || '';
+    }
+  }
+
+  function setAuthButton(isProduction, authorized) {
+    const authStatus = $('auth-status');
+    if (isProduction) {
+      authStatus.textContent = authorized ? 'Authorized' : 'Unauthorized - some features disabled';
+      authStatus.dataset.kind = authorized ? 'ok' : 'error';
+      if (!authorized) {
+        setStatus('photo-status', 'Not authorized. Upload features disabled.', 'error');
+        setStatus('music-status', 'Not authorized. Upload features disabled.', 'error');
+      }
+    } else {
+      authStatus.textContent = 'Local mode - automatic authentication';
+      authStatus.dataset.kind = 'ok';
+    }
+  }
+
+  function api(path, options) {
+    const res = fetch(path, options);
     let data = null;
     try {
-      data = await res.json();
+      data = res.json();
     } catch (e) {
       data = null;
     }
@@ -53,7 +83,7 @@
         else reject(new Error(data.error || `Upload failed (${xhr.status})`));
       });
       xhr.addEventListener('error', function () {
-        reject(new Error('Network error. Is "npm start" still running?'));
+        reject(new Error('Network error.'));
       });
       xhr.send(formData);
     });
@@ -121,10 +151,15 @@
   }
 
   async function loadPhotos() {
-    const data = await api('/api/photos');
-    state.order = Array.isArray(data.photos) ? data.photos.slice() : [];
-    state.dirty = false;
-    renderPhotos();
+    try {
+      const data = await api('/api/photos');
+      state.order = Array.isArray(data.photos) ? data.photos.slice() : [];
+      state.dirty = false;
+      renderPhotos();
+      setStatus('photo-status', 'Photo list loaded.', 'ok');
+    } catch (e) {
+      setStatus('photo-status', e.message, 'error');
+    }
   }
 
   function markDirty() {
@@ -135,7 +170,7 @@
 
   async function saveOrder() {
     try {
-      await api('/api/photos/reorder', {
+      const data = await api('/api/photos/reorder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order: state.order })
@@ -217,7 +252,7 @@
       radio.checked = index === state.active;
       radio.dataset.action = 'active';
       radio.dataset.index = String(index);
-      radio.setAttribute('aria-label', `Use ${track.title}`);
+      radio.setAttribute('aria-label', 'Use ' + track.title);
 
       const title = document.createElement('span');
       title.className = 'track-title';
@@ -227,22 +262,37 @@
       file.className = 'track-file';
       file.textContent = track.src.split('/').pop();
 
+      const startTimeDisplay = document.createElement('span');
+      startTimeDisplay.className = 'track-starttime';
+      startTimeDisplay.textContent = formatTime(track.startTime || 0);
+
       const actions = document.createElement('div');
       actions.className = 'track-actions';
       const preview = makeButton('Preview', 'preview', { index: String(index), src: track.src });
       const remove = makeButton('Remove', 'delete', { index: String(index), src: track.src }, true);
       actions.append(preview, remove);
 
-      row.append(radio, title, file, actions);
+      row.append(radio, title, file, startTimeDisplay, actions);
       list.appendChild(row);
     });
   }
 
+  function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
   async function loadMusic() {
-    const data = await api('/api/music');
-    state.tracks = Array.isArray(data.tracks) ? data.tracks : [];
-    state.active = Number.isInteger(data.active) ? data.active : 0;
-    renderTracks();
+    try {
+      const data = await api('/api/music');
+      state.tracks = Array.isArray(data.tracks) ? data.tracks : [];
+      state.active = Number.isInteger(data.active) ? data.active : 0;
+      renderTracks();
+      setStatus('music-status', 'Music list loaded.', 'ok');
+    } catch (e) {
+      setStatus('music-status', e.message, 'error');
+    }
   }
 
   async function setActiveTrack(index) {
@@ -277,6 +327,23 @@
       await loadMusic();
     } catch (e) {
       setStatus('music-status', e.message, 'error');
+    }
+  }
+
+  function updateTrackStartTime(trackIndex, seconds) {
+    if (state.tracks[trackIndex]) {
+      state.tracks[trackIndex].startTime = seconds;
+      // Update the display
+      const startTimeDisplay = $('track-starttime');
+      if (startTimeDisplay) {
+        startTimeDisplay.textContent = formatTimeDisplay(seconds);
+      }
+      // Save to server
+      const data = api('/api/music/active', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ index: state.active, startTime: seconds })
+      });
     }
   }
 
@@ -403,7 +470,11 @@
       if (!fig) return;
       state.dragSrc = fig.dataset.src;
       fig.classList.add('dragging');
-      event.dataTransfer.effectAllowed = 'move';
+      try {
+        event.dataTransfer.effectAllowed = 'move';
+      } catch (e) {
+        /* ignore */
+      }
       try {
         event.dataTransfer.setData('text/plain', state.dragSrc);
       } catch (e) {
@@ -489,6 +560,52 @@
       audio.volume = Number(event.target.value);
     });
 
+    // Start time controls
+    const startTimeInput = $('#start-time-input');
+    const startTimeSlider = $('#start-time-slider');
+    const startTimeDisplay = $('#start-time-display');
+    
+    if (startTimeInput) {
+      startTimeInput.addEventListener('input', function () {
+        let value = this.value;
+        // Ensure format MM:SS
+        if (!/^\d{1,2}:\d{2}$/.test(value)) {
+          // Strip to format
+          const parts = value.split(':');
+          if (parts.length === 2) {
+            const mins = Math.max(0, Math.min(99, parseInt(parts[0] || '0', 10)));
+            const secs = Math.max(0, Math.min(59, parseInt(parts[1] || '0', 10)));
+            value = mins + ':' + (secs < 10 ? '0' : '') + secs;
+          } else {
+            value = '00:00';
+          }
+          this.value = value;
+        }
+        // Update slider and display
+        const seconds = parseInt(value.replace(':', ''), 10) || 0;
+        startTimeSlider.value = seconds;
+        startTimeDisplay.textContent = value;
+        // Update the currently selected track's start time
+        if (state.tracks[state.active] && state.tracks[state.active].src) {
+          updateTrackStartTime(state.active, seconds);
+        }
+      });
+      
+      startTimeSlider.addEventListener('input', function () {
+        const seconds = Math.max(0, Math.min(3600, Math.round(this.value)));
+        startTimeDisplay.textContent = formatTimeDisplay(seconds);
+        if (state.tracks[state.active] && state.tracks[state.active].src) {
+          updateTrackStartTime(state.active, seconds);
+        }
+      });
+    }
+
+    function formatTimeDisplay(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
     ['play', 'pause', 'ended'].forEach(function (type) {
       audio.addEventListener(type, updatePreviewButtons);
     });
@@ -505,34 +622,59 @@
   }
 
   async function boot() {
-    bindPhotoEvents();
-    bindMusicEvents();
+    // Detect if we're on production (Vercel)
+    const isProduction = window.location.hostname !== 'localhost' && 
+                         window.location.hostname !== '127.0.0.1' && 
+                         !window.location.hostname.startsWith('192.168.');
 
+    state.isProduction = isProduction;
+
+    // Try to authenticate
     try {
-      const health = await api('/api/health');
-      state.apiOk = Boolean(health.ok);
-    } catch (e) {
-      state.apiOk = false;
-      showWarning('The management API is not reachable. Start it with "npm start" in the project folder, then open http://localhost:3000/admin.html. This page does not work on the Vercel URL.');
-      return;
-    }
+      const health = await fetch('/api/health');
+      const healthData = await health.json();
+      state.apiOk = healthData.ok || false;
+      state.authorized = healthData.ok || isLoopback();
 
-    if (!state.apiOk) {
-      showWarning('The management API reported it is unavailable.');
-      return;
-    }
+      if (isProduction && !state.authorized) {
+        // On production, check for admin token
+        const token = getAdminToken();
+        if (token) {
+          // Send auth header
+          // The admin token will be set by the server check
+        }
+      }
 
-    try {
-      await loadPhotos();
-    } catch (e) {
-      setStatus('photo-status', e.message, 'error');
-    }
+      setAuthButton(isProduction, state.authorized);
 
-    try {
-      await loadMusic();
+      if (!state.apiOk && !state.authorized) {
+        showAuthWarning('The management API is not reachable or not authorized. '
+          + 'On localhost, start "npm start". On Vercel, set ADMIN_API_KEY environment variable.');
+        return;
+      }
+
+      if (state.apiOk || state.authorized) {
+        try {
+          await loadPhotos();
+        } catch (e) {
+          setStatus('photo-status', e.message, 'error');
+        }
+        try {
+          await loadMusic();
+        } catch (e) {
+          setStatus('music-status', e.message, 'error');
+        }
+      }
     } catch (e) {
-      setStatus('music-status', e.message, 'error');
+      showAuthWarning('Failed to check API status: ' + (e.message || ''));
     }
+  }
+
+  function getAdminToken() {
+    // Try to get token from localStorage or prompt
+    // In production, the admin token should be set via Vercel env vars
+    // and the server will check it automatically
+    return null;
   }
 
   if (document.readyState === 'loading') {

@@ -169,6 +169,7 @@
     const backdropB = document.getElementById('backdropB');
     let album = null, idx = 0, timer = null, playing = true, photos = [], activeBackdrop = backdropA;
     let natural = { w: 0, h: 0 };
+    let startTime = 0; // saved start time in seconds from album settings
 
     function themeFor(src) {
       const settings = (album && album.settings) || {};
@@ -267,6 +268,7 @@
         photos = Array.isArray(album.photos) ? album.photos : [];
         if (album.music && album.music.src) {
           audio.src = album.music.src;
+          startTime = album.music.startTime || 0;
           audio.volume = typeof album.settings?.musicVolume === 'number' ? album.settings.musicVolume : 0.7;
         }
         // Warm the crossOrigin image cache for the first photo to avoid a
@@ -287,6 +289,8 @@
     async function startMusic() {
       if (!audio.src) return;
       try {
+        // Seek to the saved start time
+        audio.currentTime = startTime;
         await audio.play();
         playMusicBtn.style.display = 'none';
       } catch(e) {
@@ -314,6 +318,15 @@
         resetTimer();
         playpause.textContent = '⏸';
         playing = true;
+      }
+    });
+    // When audio ends, restart from start time
+    audio.addEventListener('ended', () => {
+      audio.currentTime = startTime;
+      if (playing) {
+        audio.play().catch(function () {
+          setStatus('music-status', 'This track could not be played.', 'error');
+        });
       }
     });
     load();

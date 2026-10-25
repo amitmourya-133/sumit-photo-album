@@ -126,7 +126,8 @@ function getMusic() {
         .filter((t) => t && typeof t.src === 'string' && t.src.startsWith('/music/'))
         .map((t) => ({
           title: typeof t.title === 'string' && t.title.trim() ? t.title.trim() : path.basename(t.src, path.extname(t.src)),
-          src: '/music/' + path.basename(t.src)
+          src: '/music/' + path.basename(t.src),
+          startTime: typeof t.startTime === 'number' ? t.startTime : 0
         }))
     : [];
   let active = Number.isInteger(data.active) ? data.active : 0;
@@ -247,6 +248,16 @@ async function safeUnlink(file) {
 function isLoopback(req) {
   const addr = req.socket.remoteAddress || '';
   return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+}
+
+function isAuthorized(req) {
+  // Allow loopback (local dev)
+  if (isLoopback(req)) return true;
+  // Allow production with secret token from env var
+  const adminKey = process.env.ADMIN_API_KEY;
+  if (!adminKey) return false;
+  const token = req.headers['x-admin-token'];
+  return token && token === adminKey;
 }
 
 function looksLikeMp3(buffer) {
@@ -389,8 +400,10 @@ async function uploadMusic(req, res) {
     const outName = uniqueName(MUSIC_DIR, base, outExt);
     fs.writeFileSync(path.join(MUSIC_DIR, outName), f.buffer);
     const title = path.basename(f.filename, path.extname(f.filename)).replace(/[_]+/g, ' ').trim() || base;
-    music.tracks.push({ title, src: '/music/' + outName });
-    added.push({ title, src: '/music/' + outName });
+    // Get startTime from form data, default to 0
+    const startTime = Number(req.body.startTime) || 0;
+    music.tracks.push({ title, src: '/music/' + outName, startTime });
+    added.push({ title, src: '/music/' + outName, startTime });
   }
   if (added.length) {
     if (!Number.isInteger(music.active) || music.active < 0 || music.active >= music.tracks.length) {
@@ -415,6 +428,10 @@ function setActiveTrack(req, res, body) {
     return;
   }
   music.active = index;
+  // Update startTime if provided
+  if (body.startTime !== undefined) {
+    music.tracks[index].startTime = body.startTime;
+  }
   saveMusic(music);
   sendJson(res, 200, { active: music.active, tracks: music.tracks });
 }
@@ -570,8 +587,8 @@ const server = http.createServer((req, res) => {
   }
   if (pathname === '/') pathname = '/index.html';
   if (pathname.startsWith('/api/')) {
-    if (!isLoopback(req)) {
-      sendJson(res, 403, { error: 'Management API is available on localhost only.' });
+    if (!isAuthorized(req)) {
+      sendJson(res, 403, { error: 'Management API access denied.' });
       return;
     }
     handleApi(req, res, pathname).catch((e) => {
