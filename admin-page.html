@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Album Manager</title>
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Album Manager</h1>
+      <p class="sub" id="auth-status">Loading authorization...</p>
+    </div>
+    <a class="btn ghost" href="/" target="_blank" rel="noopener">View album</a>
+  </header>
+
+  <main>
+    <div id="api-warning" class="warning" hidden></div>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Photos <span id="photo-count" class="badge">0</span></h2>
+        <div class="actions">
+          <button id="refresh-photos" class="btn ghost" type="button">Refresh</button>
+          <button id="save-order" class="btn" type="button" disabled>Save order</button>
+        </div>
+      </div>
+      <p class="hint">Drop multiple images or click to select. Each image is resized to 1600px and converted to WebP. Drag thumbnails to reorder, then click Save order.</p>
+
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Add photos">
+        <strong>Drop photos here</strong>
+        <span>or click to select multiple files</span>
+        <input id="photo-input" type="file" accept="image/*" multiple hidden>
+      </div>
+
+      <div id="photo-grid" class="grid"></div>
+      <p id="photo-status" class="status" role="status"></p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Music <span id="track-count" class="badge">0</span></h2>
+        <div class="actions">
+          <button id="refresh-music" class="btn ghost" type="button">Refresh</button>
+        </div>
+      </div>
+      <p class="hint">Upload MP3 files, select the active track, preview it, then deploy. The album plays the active track.</p>
+
+      <div class="row">
+        <label class="btn" for="music-input">Upload MP3</label>
+        <input id="music-input" type="file" accept=".mp3,audio/mpeg,audio/mp4,.m4a" multiple hidden>
+        <label class="volume">Preview volume
+          <input id="preview-volume" type="range" min="0" max="1" step="0.01" value="0.8">
+        </label>
+        <div class="start-time-control">
+          <label>Start time: <input type="text" id="start-time-input" class="small" maxlength="5" pattern="^\d{1,2}:\d{2}$" placeholder="MM:SS"> <span id="start-time-display">00:00</span></label>
+          <input type="range" id="start-time-slider" min="0" max="3600" value="0">
+        </div>
+      </div>
+
+      <div id="track-list" class="tracks"></div>
+      <audio id="preview-audio" preload="metadata"></audio>
+      <p id="music-status" class="status" role="status"></p>
+    </section>
+
+    <section class="card note">
+      <h2>Publishing</h2>
+      <p>Uploads are processed through the secure server API and deployed to Vercel when you run <code>npx vercel --prod</code>. Original photos are preserved; new photos are added to the album.</p>
+      <p class="hint">The manager connects to the secure API endpoint. On localhost, authentication is automatic. On Vercel, a secret token is required.</p>
+    </section>
+  </main>
+
+  <script src="js/admin.js"></script>
+</body>
+</html>
