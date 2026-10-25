@@ -20,14 +20,15 @@ module.exports = async (req, res) => {
   if (req.method === 'POST') {
     try {
       if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-        console.error('album: missing KV env vars');
-        return res.status(500).json({ error: 'Missing KV_REST_API_URL or KV_REST_API_TOKEN. Configure Upstash Redis (Vercel KV) in environment variables.' });
+        console.error('album: missing KV');
+        return res.status(500).json({ error: 'Missing KV_REST_API_URL or KV_REST_API_TOKEN (Upstash Redis). Configure in Vercel Environment Variables.' });
       }
-      const { title, photos, music, settings } = req.body || {};
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      const { title, photos, music, settings } = body || {};
       if (!Array.isArray(photos) || photos.length === 0) {
         return res.status(400).json({ error: 'At least one photo is required' });
       }
-      for (let i = 0; i < Math.min(photos.length, 5); i++) {
+      for (let i = 0; i < Math.min(photos.length, 3); i++) {
         if (typeof photos[i] !== 'string' || !photos[i].startsWith('http')) {
           return res.status(400).json({ error: 'Invalid photo URL' });
         }
@@ -37,6 +38,9 @@ module.exports = async (req, res) => {
       }
 
       const id = uuidv4();
+      const duration = Math.max(3, Math.min(5, settings && settings.duration ? parseInt(settings.duration) : 3));
+      const safeSettings = { ...(settings || {}), duration };
+
       if (photos.length > CHUNK_SIZE) {
         const chunks = chunkArray(photos, CHUNK_SIZE);
         const meta = {
@@ -45,7 +49,7 @@ module.exports = async (req, res) => {
           photoCount: photos.length,
           chunked: true,
           music: music || null,
-          settings: settings || { duration: 3, transition: 'fade', musicVolume: 0.7 },
+          settings: safeSettings,
           createdAt: new Date().toISOString()
         };
         await kv.set(`album:${id}:meta`, meta);
@@ -59,7 +63,7 @@ module.exports = async (req, res) => {
           title: title || 'Photo Album',
           photos,
           music: music || null,
-          settings: settings || { duration: 3, transition: 'fade', musicVolume: 0.7 },
+          settings: safeSettings,
           createdAt: new Date().toISOString()
         };
         await kv.set(`album:${id}`, album);
@@ -68,7 +72,17 @@ module.exports = async (req, res) => {
       const url = `https://${req.headers.host}/album/${id}`;
       return res.status(200).json({ id, url, qr: url });
     } catch (e) {
-      console.error('album: create error');
+      console.error('album create error');
+      return res.status(500).json({ error: e.message || 'Failed to create album' });
+    }
+  }
+  if (req.method === 'GET') {
+    try {
+      if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+        return res.status(500).json({ error: 'Missing KV configuration' });
+      }
+      return res.status(200).json({ ok: true });
+    } catch (e) {
       return res.status(500).json({ error: e.message });
     }
   }

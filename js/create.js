@@ -1,4 +1,5 @@
-// Vercel Blob client upload
+import { upload } from '@vercel/blob/client';
+
 let photos = [];
 let musicFile = null;
 let photoFiles = [];
@@ -49,7 +50,7 @@ function handlePhotoSelect(e) {
 function handleFiles(files) {
   Array.from(files).forEach(file => {
     if (!file.type.startsWith('image/')) {
-      if (!file.name.match(/\.(jpe?g|png|webp|heic|avif)$/i)) return;
+      if (!file.name.match(/\.(jpe?g|png|webp|heic|avif|gif)$/i)) return;
     }
     if (file.size > 50 * 1024 * 1024) return;
     photoFiles.push(file);
@@ -81,7 +82,7 @@ function renderPhotos() {
     const p = photos[idx];
     const div = document.createElement('div');
     div.className = 'photo-item';
-    div.innerHTML = '<img src="' + p.url + '" alt="' + p.name + '" loading="lazy"><button class="photo-remove" onclick="removePhoto(' + idx + ')">×</button>';
+    div.innerHTML = '<img src="' + p.url + '" alt="" loading="lazy"><button class="photo-remove" onclick="removePhoto(' + idx + ')">×</button>';
     photoGrid.appendChild(div);
   }
   if (photos.length > 200) {
@@ -142,12 +143,12 @@ uploadMusicBtn.addEventListener('click', () => musicInput.click());
 musicInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  if (!file.type.includes('mpeg') && !file.name.toLowerCase().endsWith('.mp3') && !file.type.includes('mp4')) {
-    alert('Please upload MP3 or supported audio files');
+  if (!file.type.includes('mpeg') && !file.name.toLowerCase().endsWith('.mp3')) {
+    alert('Please upload MP3 files only');
     musicInput.value = '';
     return;
   }
-  if (file.size > 100 * 1024 * 1024) return alert('Audio file too large (max 100MB)');
+  if (file.size > 100 * 1024 * 1024) return alert('Audio file too large');
   musicFile = file;
   musicPreview.src = URL.createObjectURL(file);
   musicName.textContent = file.name;
@@ -172,38 +173,27 @@ function updateSummary() {
 
 document.getElementById('generateBtn').addEventListener('click', generateAlbum);
 
-async function uploadWithRetry(file, pathname, attempts) {
+async function uploadFile(file, pathname, attempts) {
   attempts = attempts || 3;
   for (let i = 0; i < attempts; i++) {
     try {
-      const res = await fetch('/api/blob/token', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ type: 'blob.generate-client-token', pathname: pathname, clientPayload: null })
+      const blob = await upload(pathname, file, {
+        access: 'public',
+        handleUploadUrl: '/api/blob/token',
+        contentType: file.type || undefined,
       });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || 'token failed');
-      const form = new FormData();
-      form.append('file', file);
-      form.append('token', data.token || data.clientToken || '');
-      // Try Vercel Blob upload API
-      const up = await fetch('https://blob.vercel-storage.com/upload', { method: 'POST', body: form });
-      if (up.ok) {
-        const j = await up.json();
-        if (j.url) return { url: j.url };
-      }
-      // Fallback to our upload endpoint
-      const fd = new FormData();
-      fd.append('file', file);
-      const up2 = await fetch('/api/album/upload-direct', { method: 'POST', body: fd });
-      const j2 = await up2.json();
-      if (up2.ok && j2.url) return { url: j2.url };
-      throw new Error('upload failed');
+      if (blob && blob.url) return blob.url;
+      throw new Error('Upload returned no URL');
     } catch (e) {
       if (i === attempts - 1) throw e;
       await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
     }
   }
+}
+
+async function safeParse(res) {
+  const text = await res.text();
+  try { return JSON.parse(text); } catch(e) { throw new Error(text.slice(0, 300) || ('HTTP ' + res.status)); }
 }
 
 async function generateAlbum() {
@@ -229,12 +219,13 @@ async function generateAlbum() {
 
     for (let i = 0; i < photoFiles.length; i += concurrency) {
       const batch = photoFiles.slice(i, i + concurrency);
-      const results = await Promise.allSettled(batch.map((file, idx) => 
-        uploadWithRetry(file, 'albums/photos/' + Date.now() + '-' + (i+idx) + '-' + file.name.replace(/[^a-zA-Z0-9.-]/g,'_'))
-      ));
+      const results = await Promise.allSettled(batch.map((file, idx) => {
+        const safe = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        return uploadFile(file, 'albums/photos/' + Date.now() + '-' + (i+idx) + '-' + safe);
+      }));
       results.forEach((r) => {
-        if (r.status === 'fulfilled' && r.value && r.value.url) {
-          photoUrls.push(r.value.url);
+        if (r.status === 'fulfilled' && r.value) {
+          photoUrls.push(r.value);
           completed++;
         } else {
           failed++;
@@ -248,19 +239,16 @@ async function generateAlbum() {
     }
 
     if (completed === 0) throw new Error('All photo uploads failed');
-    if (failed > 0) throw new Error(failed + ' photo(s) failed to upload. Please retry.');
+    if (failed > 0) throw new Error(failed + ' photo(s) failed to upload');
 
     let musicObj = null;
     if (musicFile) {
       progressText.textContent = 'Uploading music...';
       progressBar.style.width = '80%';
       progressPercent.textContent = '80%';
-      try {
-        const mRes = await uploadWithRetry(musicFile, 'albums/music/' + Date.now() + '-' + musicFile.name.replace(/[^a-zA-Z0-9.-]/g,'_'));
-        musicObj = { src: mRes.url, title: musicFile.name };
-      } catch (e) {
-        throw new Error('Music upload failed');
-      }
+      const mSafe = musicFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const mUrl = await uploadFile(musicFile, 'albums/music/' + Date.now() + '-' + mSafe);
+      musicObj = { src: mUrl, title: musicFile.name };
     }
 
     progressText.textContent = 'Saving album...';
@@ -283,10 +271,8 @@ async function generateAlbum() {
         }
       })
     });
-    const text = await albumRes.text();
-    let albumData;
-    try { albumData = JSON.parse(text); } catch(e) { throw new Error(text.slice(0, 200)); }
-    if (!albumRes.ok || albumData.error) throw new Error(albumData.error || 'Failed to create album');
+    const albumData = await safeParse(albumRes);
+    if (!albumRes.ok || albumData.error) throw new Error(albumData.error || ('HTTP ' + albumRes.status));
 
     progressBar.style.width = '100%';
     progressPercent.textContent = '100%';
