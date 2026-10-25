@@ -30,7 +30,8 @@
     "busboy": "^1.6.0",
     "qrcode": "^1.5.4",
     "sharp": "^0.35.5",
-    "uuid": "^14.0.3"
+    "uuid": "^14.0.3",
+    "@upstash/redis": "^1.35.3"
   },
   "bugs": {
     "url": "https://github.com/amitmourya-133/sumit-photo-album/issues"
