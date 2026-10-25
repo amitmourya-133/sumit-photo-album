@@ -9,6 +9,12 @@ music/
 # Local environment
 .env*
 
+# Development files
+test-process.js
+test-resize.js
+create-test-imgs.py
+*.ts
+
 # Vercel config (local only)
 .vercel/
 

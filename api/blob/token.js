@@ -1,7 +1,7 @@
-// Uses a local, bundled copy of the @vercel/blob client's server helper so
-// production builds of the function always resolve it, independent from the
-// package's sub-path exports tracing.
-const { handleUpload } = require('../../lib/blob-client/client.cjs');
+// Uses a fully bundled (esbuild) copy of the @vercel/blob client's server helper.
+// Every npm dependency is inlined, so the serverless bundle never fails on
+// "Cannot find module ..." for transitive deps.
+const { handleUpload } = require('../../lib/blob-client/bundle.cjs');
 
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
