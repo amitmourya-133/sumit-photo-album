@@ -313,16 +313,41 @@
       progressPercent.textContent = '100%';
       progressText.textContent = 'Complete!';
 
+      status.textContent = 'Verifying album...';
+      if (!albumData || !albumData.id || !/^https:\/\//.test(albumData.url || '') || albumData.url.includes('localhost')) {
+        throw new Error('Server returned an invalid album link. Please try again.');
+      }
+      const verifyRes = await fetch('/api/album/' + encodeURIComponent(albumData.id));
+      const verifyData = await safeJson(verifyRes);
+      if (!verifyRes.ok || !verifyData || !Array.isArray(verifyData.photos) || verifyData.photos.length === 0) {
+        throw new Error('Album was saved but could not be loaded back. '
+          + ((verifyRes.ok && verifyData && verifyData.error) || ('HTTP ' + verifyRes.status)));
+      }
+
       status.textContent = 'Generating QR code...';
-      const qrDataUrl = await QRCode.toDataURL(albumData.url, { width: 300, margin: 2, color: { dark: '#000000', light: '#FFFFFF' } });
-      document.getElementById('qrImg').src = qrDataUrl;
+      let qrDataUrl = null;
+      let qrWarning = '';
+      try {
+        if (typeof QRCode === 'undefined' || !QRCode.toDataURL) throw new Error('QR library failed to load');
+        qrDataUrl = await QRCode.toDataURL(albumData.url, { width: 300, margin: 2, color: { dark: '#000000', light: '#FFFFFF' } });
+      } catch (qrError) {
+        qrWarning = 'QR code could not be generated (' + (qrError && qrError.message ? qrError.message : 'unknown') + '). Use the album link below.';
+      }
+      if (qrWarning) {
+        status.textContent = qrWarning;
+        status.style.color = '#c44569';
+      } else {
+        document.getElementById('qrImg').src = qrDataUrl;
+        status.textContent = '';
+        status.style.color = '';
+      }
       document.getElementById('albumLink').value = albumData.url;
       document.getElementById('openAlbum').href = albumData.url;
       document.getElementById('result').style.display = 'block';
 
       document.getElementById('downloadQR').onclick = () => {
         const a = document.createElement('a');
-        a.href = qrDataUrl;
+        a.href = qrDataUrl || albumData.url;
         a.download = 'album-qr.png';
         a.click();
       };
