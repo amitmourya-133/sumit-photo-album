@@ -1,26 +1,56 @@
 # Generated files (run resize.js to create these)
 node_modules/
+
+# Original photos and music
 photos/
-
-# User's original photos (do not commit)
 raw-photos/
+music/
 
-# Development files
-test-process.js
-test-resize.js
-create-test-imgs.py
-*.ts
+# Local environment
+.env*
 
 # Vercel config (local only)
 .vercel/
 
-# Legacy media file (use the music/ folder instead)
-music.mp3
+# Generated manifests
+*.json.tmp
 
-# Temporary files
-*.tmp
+# Legacy media
+music.mp3
 
 # Docs
 DEPLOYMENT_GUIDE.md
-LICENSE.md
-.env*
+
+# Vite/Nuxt/Next build artifacts
+.next/
+dist/
+build/
+
+# Bundled test harness data
+*.tmp.js
+
+# Local song fixtures
+*.m4a.tmp
+
+# Keep app config JSON
+!photos.json
+!music.json
+
+# Let vendored SDK copy inside lib/ be committed
+!lib/
+!lib/**
+
+!api/
+!api/**
+
+!js/
+!js/**
+
+!css/
+!css/**
+
+!photos.json
+!music.json
+
+# Allow the nested vendored node_modules under lib
+!lib/blob-client/node_modules/**
