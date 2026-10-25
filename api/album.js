@@ -1,90 +1,145 @@
 const { kv } = require('@vercel/kv');
 const { v4: uuidv4 } = require('uuid');
 
-const CHUNK_SIZE = 400;
+const CHUNK_SIZE = 350;
+const MAX_PHOTOS = 5000;
 
-function chunkArray(arr, size) {
-  const chunks = [];
-  for (let i = 0; i < arr.length; i += size) {
-    chunks.push(arr.slice(i, i + size));
-  }
-  return chunks;
+function sendJson(res, status, payload) {
+  const body = JSON.stringify(payload);
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff'
+  });
+  res.end(body);
+}
+
+async function readJsonBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > 1024 * 1024) {
+        reject(new Error('Request body too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8');
+      if (!raw) return resolve({});
+      try {
+        resolve(JSON.parse(raw));
+      } catch (e) {
+        reject(new Error('Invalid JSON body'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function isHttpUrl(value) {
+  return typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'));
 }
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  try {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      });
+      res.end();
+      return;
+    }
+    if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+      sendJson(res, 503, { error: 'Missing KV_REST_API_URL or KV_REST_API_TOKEN. Connect Upstash Redis (Vercel KV) in Vercel Storage settings.' });
+      return;
+    }
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      sendJson(res, 503, { error: 'Missing BLOB_READ_WRITE_TOKEN. Add the Vercel Blob read-write token in environment variables.' });
+      return;
+    }
 
-  if (req.method === 'POST') {
-    try {
-      if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-        console.error('album: missing KV');
-        return res.status(500).json({ error: 'Missing KV_REST_API_URL or KV_REST_API_TOKEN (Upstash Redis). Configure in Vercel Environment Variables.' });
+    if (req.method === 'POST') {
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (e) {
+        sendJson(res, 400, { error: e.message });
+        return;
       }
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const { title, photos, music, settings } = body || {};
       if (!Array.isArray(photos) || photos.length === 0) {
-        return res.status(400).json({ error: 'At least one photo is required' });
+        sendJson(res, 400, { error: 'At least one photo URL is required.' });
+        return;
       }
-      for (let i = 0; i < Math.min(photos.length, 3); i++) {
-        if (typeof photos[i] !== 'string' || !photos[i].startsWith('http')) {
-          return res.status(400).json({ error: 'Invalid photo URL' });
-        }
+      if (photos.length > MAX_PHOTOS) {
+        sendJson(res, 400, { error: `Album supports up to ${MAX_PHOTOS} photos.` });
+        return;
       }
-      if (music && music.src && (typeof music.src !== 'string' || !music.src.startsWith('http'))) {
-        return res.status(400).json({ error: 'Invalid music URL' });
+      if (!photos.every(isHttpUrl)) {
+        sendJson(res, 400, { error: 'One or more photo URLs are invalid.' });
+        return;
       }
+      if (music && music.src && !isHttpUrl(music.src)) {
+        sendJson(res, 400, { error: 'Invalid music URL.' });
+        return;
+      }
+      const settingsSafe = { ...(settings || {}) };
+      settingsSafe.duration = Math.max(3, Math.min(5, parseInt(settingsSafe.duration) || 3));
+      settingsSafe.transition = typeof settingsSafe.transition === 'string' ? settingsSafe.transition.slice(0, 20) : 'fade';
+      settingsSafe.musicVolume = Math.max(0, Math.min(1, Number(settingsSafe.musicVolume) || 0.7));
+      settingsSafe.openingMsg = typeof settingsSafe.openingMsg === 'string' ? settingsSafe.openingMsg.slice(0, 200) : '';
+      settingsSafe.romanticTheme = !!settingsSafe.romanticTheme;
+      const titleSafe = (typeof title === 'string' ? title.trim() : '').slice(0, 120) || 'Photo Album';
 
       const id = uuidv4();
-      const duration = Math.max(3, Math.min(5, settings && settings.duration ? parseInt(settings.duration) : 3));
-      const safeSettings = { ...(settings || {}), duration };
-
       if (photos.length > CHUNK_SIZE) {
-        const chunks = chunkArray(photos, CHUNK_SIZE);
+        const chunks = [];
+        for (let i = 0; i < photos.length; i += CHUNK_SIZE) chunks.push(photos.slice(i, i + CHUNK_SIZE));
         const meta = {
           id,
-          title: title || 'Photo Album',
+          title: titleSafe,
           photoCount: photos.length,
           chunked: true,
+          chunkCount: chunks.length,
           music: music || null,
-          settings: safeSettings,
+          settings: settingsSafe,
           createdAt: new Date().toISOString()
         };
         await kv.set(`album:${id}:meta`, meta);
-        for (let c = 0; c < chunks.length; c++) {
-          await kv.set(`album:${id}:chunk:${c}`, chunks[c]);
-        }
-        await kv.set(`album:${id}:chunks`, chunks.length);
+        for (let c = 0; c < chunks.length; c++) await kv.set(`album:${id}:chunk:${c}`, chunks[c]);
       } else {
         const album = {
           id,
-          title: title || 'Photo Album',
+          title: titleSafe,
           photos,
           music: music || null,
-          settings: safeSettings,
+          settings: settingsSafe,
           createdAt: new Date().toISOString()
         };
         await kv.set(`album:${id}`, album);
       }
 
-      const url = `https://${req.headers.host}/album/${id}`;
-      return res.status(200).json({ id, url, qr: url });
-    } catch (e) {
-      console.error('album create error');
-      return res.status(500).json({ error: e.message || 'Failed to create album' });
+      const url = `https://${req.headers.host || 'sumit-photo-album.vercel.app'}/album/${id}`;
+      sendJson(res, 200, { id, url, qr: url });
+      return;
     }
-  }
-  if (req.method === 'GET') {
-    try {
-      if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-        return res.status(500).json({ error: 'Missing KV configuration' });
-      }
-      return res.status(200).json({ ok: true });
-    } catch (e) {
-      return res.status(500).json({ error: e.message });
+
+    if (req.method === 'GET') {
+      sendJson(res, 200, { ok: true });
+      return;
     }
+
+    sendJson(res, 405, { error: 'Method not allowed. Use POST.' });
+  } catch (error) {
+    console.error('api/album failed:', error && error.message ? error.message : 'unknown');
+    sendJson(res, 500, { error: error && error.message ? error.message : 'Failed to create album' });
   }
-  res.status(405).json({ error: 'Method not allowed' });
 };

@@ -23,3 +23,4 @@ music.mp3
 # Docs
 DEPLOYMENT_GUIDE.md
 LICENSE.md
+.env*
