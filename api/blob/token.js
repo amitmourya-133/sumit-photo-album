@@ -3,6 +3,11 @@
 // "Cannot find module ..." for transitive deps.
 const { handleUpload } = require('../../lib/blob-client/bundle.cjs');
 
+// Vercel Blob store access mode is fixed at creation: client uploads require a
+// PUBLIC store. sumit-photo-album-public is the public store connected via the
+// UPLOADS_* env prefix; the legacy private store's BLOB_* vars stay as fallback.
+const UPLOAD_TOKEN_FROM_ENV = process.env.UPLOADS_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN || '';
+
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -62,11 +67,12 @@ module.exports = async (req, res) => {
       sendJson(res, 400, { error: e.message });
       return;
     }
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      sendJson(res, 503, { error: 'Missing BLOB_READ_WRITE_TOKEN. Add a Vercel Blob read-write token in Vercel project environment variables.' });
+    if (!UPLOAD_TOKEN_FROM_ENV) {
+      sendJson(res, 503, { error: 'Missing UPLOADS_READ_WRITE_TOKEN (public Blob store token) and BLOB_READ_WRITE_TOKEN. Connect a public Vercel Blob store to this project and redeploy.' });
       return;
     }
     const jsonResponse = await handleUpload({
+      token: UPLOAD_TOKEN_FROM_ENV,
       body,
       request: req,
       onBeforeGenerateToken: async (pathname) => {
