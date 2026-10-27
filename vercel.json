@@ -2,7 +2,18 @@
   "version": 2,
   "builds": [
     { "src": "api/**/*.js", "use": "@vercel/node" },
-    { "src": "**/*", "use": "@vercel/static" }
+    { "src": "css/**/*.css", "use": "@vercel/static" },
+    { "src": "js/**/*.js", "use": "@vercel/static" },
+    { "src": "photos/**/*", "use": "@vercel/static" },
+    { "src": "music/**/*", "use": "@vercel/static" },
+    { "src": "*.html", "use": "@vercel/static" },
+    { "src": "*.json", "use": "@vercel/static" },
+    { "src": "*.png", "use": "@vercel/static" },
+    { "src": "*.jpg", "use": "@vercel/static" },
+    { "src": "*.jpeg", "use": "@vercel/static" },
+    { "src": "*.webp", "use": "@vercel/static" },
+    { "src": "*.svg", "use": "@vercel/static" },
+    { "src": "*.ico", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/admin.html", "dest": "/admin-page.html" },
@@ -13,7 +24,6 @@
     { "src": "/api/photos", "dest": "/api/photos.js" },
     { "src": "/api/music", "dest": "/api/music.js" },
     { "src": "/api/health", "dest": "/api/health.js" },
-    { "src": "/album/([a-zA-Z0-9_-]+)", "dest": "/album.html?id=$1" },
-    { "src": "/(.*)", "dest": "/$1" }
+    { "src": "/album/([a-zA-Z0-9_-]+)", "dest": "/album.html?id=$1" }
   ]
 }
