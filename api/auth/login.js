@@ -45,7 +45,7 @@ module.exports = async function(req, res) {
           });
           res.end(JSON.stringify({ success: true, message: 'Login successful' }));
         } catch (e) {
-          return sendJson(503, { error: 'Session store not configured' });
+          return sendJson(503, { error: 'Session creation failed' });
         }
       } else {
         sendJson(401, { error: 'Invalid credentials' });
