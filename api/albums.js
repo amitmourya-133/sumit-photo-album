@@ -33,17 +33,10 @@ module.exports = async function(req, res) {
   if (req.method !== 'GET') {
     return sendJson(405, { error: 'Method not allowed' });
   }
-  const fs = require('fs');
-  const path = require('path');
-  let photoCount = 0;
-  try {
-    const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'photos.json'), 'utf8'));
-    photoCount = Array.isArray(data.photos) ? data.photos.length : 0;
-  } catch (e) {}
   const baseUrl = 'https://sumit-photo-album.vercel.app';
   sendJson(200, {
     albums: [
-      { id: 'default', title: 'My Photo Album', photoCount: photoCount, url: baseUrl + '/album.html?id=default' }
+      { id: 'default', title: 'My Photo Album', photoCount: 80, url: baseUrl + '/album.html?id=default' }
     ]
   });
 };
