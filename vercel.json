@@ -18,12 +18,16 @@
   "routes": [
     { "src": "/admin.html", "dest": "/admin-page.html" },
     { "src": "/api/blob/token", "dest": "/api/blob/token.js" },
+    { "src": "/api/auth/login", "dest": "/api/auth/login.js" },
+    { "src": "/api/auth/logout", "dest": "/api/auth/logout.js" },
     { "src": "/api/album/upload", "dest": "/api/album/upload.js" },
     { "src": "/api/album/([a-zA-Z0-9_-]+)", "dest": "/api/album/[id].js?id=$1" },
     { "src": "/api/album", "dest": "/api/album.js" },
     { "src": "/api/photos", "dest": "/api/photos.js" },
     { "src": "/api/music", "dest": "/api/music.js" },
     { "src": "/api/health", "dest": "/api/health.js" },
+    { "src": "/api/auth/login", "dest": "/api/auth/login.js" },
+    { "src": "/api/auth/logout", "dest": "/api/auth/logout.js" },
     { "src": "/album/([a-zA-Z0-9_-]+)", "dest": "/album.html?id=$1" }
   ]
 }
