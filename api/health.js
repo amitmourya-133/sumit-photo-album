@@ -9,16 +9,27 @@ function sendJson(res, status, payload) {
   res.end(body);
 }
 
-module.exports = async function(req, res) {
-  if (req.method === 'OPTIONS') {
+module.exports = function(req, res) {
+  try {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      });
+      res.end();
+      return;
+    }
+    const body = JSON.stringify({ ok: true, service: 'qr-photo-album' });
     res.writeHead(200, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': Buffer.byteLength(body),
+      'Cache-Control': 'no-store'
     });
-    res.end();
-    return;
+    res.end(body);
+  } catch (e) {
+    const body = JSON.stringify({ ok: false });
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(body);
   }
-  // Service health only; does not imply authentication.
-  sendJson(200, { ok: true, service: 'qr-photo-album' });
 };
