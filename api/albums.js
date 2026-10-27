@@ -1,8 +1,8 @@
 function sendJson(res, status, payload) {
-  const body = JSON.stringify(payload);
+  const body = JSON.stringify(payload == null ? {} : payload);
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(body),
+    'Content-Length': Buffer.byteLength(body, 'utf8'),
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff'
   });
