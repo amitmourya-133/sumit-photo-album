@@ -27,6 +27,7 @@
     { "src": "/api/photos", "dest": "/api/photos.js" },
     { "src": "/api/music", "dest": "/api/music.js" },
     { "src": "/api/health", "dest": "/api/health.js" },
+    { "src": "/api/albums", "dest": "/api/albums.js" },
     { "src": "/album/([a-zA-Z0-9_-]+)", "dest": "/album.html?id=$1" }
   ]
 }
