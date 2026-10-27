@@ -1,8 +1,3 @@
-const path = require('path');
-const fs = require('fs');
-
-const ROOT = __dirname;
-
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -14,30 +9,16 @@ function sendJson(res, status, payload) {
   res.end(body);
 }
 
-async function api(req, res) {
-  try {
-    if (req.method === 'OPTIONS') {
-      res.writeHead(200, {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type'
-      });
-      res.end();
-      return;
-    }
-
-    // Check authorization status
-    // For admin page to function, we return true if ADMIN_API_KEY is configured
-    // or allow access for now to avoid getting stuck on loading
-    const adminKey = process.env.ADMIN_API_KEY;
-    // If no key configured, still allow (will show warning but load data)
-    const isAuthorized = true; // Allow to avoid getting stuck
-
-    sendJson(res, 200, { ok: isAuthorized });
-  } catch (e) {
-    console.error('Health check error:', e && e.message ? e.message : 'unknown');
-    sendJson(res, 500, { error: e && e.message ? e.message : 'Internal server error' });
+module.exports = async function(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    });
+    res.end();
+    return;
   }
-}
-
-module.exports = api;
+  // Service health only; does not imply authentication.
+  sendJson(200, { ok: true, service: 'qr-photo-album' });
+};
