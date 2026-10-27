@@ -1,3 +1,5 @@
+const session = require('../../lib/session');
+
 module.exports = async function(req, res) {
   const sendJson = (status, payload) => {
     const body = JSON.stringify(payload);
@@ -18,9 +20,12 @@ module.exports = async function(req, res) {
     res.end();
     return;
   }
-  res.writeHead(200, {
-    'Content-Type': 'application/json',
-    'Set-Cookie': 'session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax'
-  });
-  res.end(JSON.stringify({ success: true, message: 'Logged out' }));
+  if (req.method !== 'POST') {
+    return sendJson(405, { error: 'Method not allowed' });
+  }
+  try {
+    await session.destroySession(req);
+  } catch (e) {}
+  session.clearSessionCookie(res);
+  sendJson(200, { success: true, message: 'Logged out' });
 };

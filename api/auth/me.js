@@ -20,7 +20,10 @@ module.exports = async function(req, res) {
     res.end();
     return;
   }
-  const s = session.getSession(req);
+  if (req.method !== 'GET') {
+    return sendJson(405, { error: 'Method not allowed' });
+  }
+  const s = await session.getSession(req);
   if (!s) {
     return sendJson(401, { authenticated: false });
   }

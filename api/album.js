@@ -46,6 +46,8 @@ function isHttpUrl(value) {
   return typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'));
 }
 
+const session = require('../lib/session');
+
 module.exports = async (req, res) => {
   try {
     if (req.method === 'OPTIONS') {
@@ -63,6 +65,11 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
+      const s = await session.getSession(req);
+      if (!s) {
+        sendJson(res, 401, { error: 'Unauthorized' });
+        return;
+      }
       let body;
       try {
         body = await readJsonBody(req);

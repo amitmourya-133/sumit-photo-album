@@ -49,8 +49,24 @@ function readJsonBody(req) {
   });
 }
 
+const session = require('../../lib/session');
+
 module.exports = async (req, res) => {
   try {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(200, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      });
+      res.end();
+      return;
+    }
+    const s = await session.getSession(req);
+    if (!s) {
+      sendJson(res, 401, { error: 'Unauthorized' });
+      return;
+    }
     if (req.method !== 'POST') {
       sendJson(res, 405, { error: 'Method not allowed. Use POST.' });
       return;

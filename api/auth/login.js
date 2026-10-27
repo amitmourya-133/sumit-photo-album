@@ -1,3 +1,5 @@
+const session = require('../../lib/session');
+
 module.exports = async function(req, res) {
   const sendJson = (status, payload) => {
     const body = JSON.stringify(payload);
@@ -23,19 +25,28 @@ module.exports = async function(req, res) {
   }
   let body = '';
   req.on('data', chunk => body += chunk);
-  req.on('end', () => {
+  req.on('end', async () => {
     try {
-      const { username, password } = JSON.parse(body || '{}');
+      const parsed = JSON.parse(body || '{}');
+      const username = typeof parsed.username === 'string' ? parsed.username : '';
+      const password = typeof parsed.password === 'string' ? parsed.password : '';
       const adminUser = process.env.ADMIN_USERNAME || 'admin';
-      const adminPass = process.env.ADMIN_PASSWORD || process.env.ADMIN_API_KEY || 'admin123';
+      const adminPass = process.env.ADMIN_PASSWORD || '';
+      if (!adminPass) {
+        return sendJson(503, { error: 'Authentication not configured' });
+      }
       if (username === adminUser && password === adminPass) {
-        const token = require('crypto').randomBytes(32).toString('hex');
-        const secure = process.env.VERCEL ? '; Secure' : '';
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Set-Cookie': 'session=' + token + '; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax' + secure
-        });
-        res.end(JSON.stringify({ success: true, message: 'Login successful' }));
+        try {
+          const sess = await session.createSession(username);
+          session.setSessionCookie(res, sess.token, 24 * 60 * 60);
+          res.writeHead(200, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store'
+          });
+          res.end(JSON.stringify({ success: true, message: 'Login successful' }));
+        } catch (e) {
+          return sendJson(503, { error: 'Session store not configured' });
+        }
       } else {
         sendJson(401, { error: 'Invalid credentials' });
       }
