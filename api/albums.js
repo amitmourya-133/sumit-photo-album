@@ -1,5 +1,3 @@
-const session = require('../lib/session');
-
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -9,6 +7,14 @@ function sendJson(res, status, payload) {
     'X-Content-Type-Options': 'nosniff'
   });
   res.end(body);
+}
+
+function getSession(req) {
+  const header = req.headers && req.headers.cookie;
+  if (!header) return null;
+  const m = header.match(/(?:^|;\s*)session=([^;]+)/);
+  if (!m) return null;
+  return m[1];
 }
 
 module.exports = async function(req, res) {
@@ -21,14 +27,12 @@ module.exports = async function(req, res) {
     res.end();
     return;
   }
-  const s = session.getSession(req);
-  if (!s) {
+  if (!getSession(req)) {
     return sendJson(401, { error: 'Unauthorized' });
   }
   if (req.method !== 'GET') {
     return sendJson(405, { error: 'Method not allowed' });
   }
-  // Return the default album representing current production data.
   const fs = require('fs');
   const path = require('path');
   let photoCount = 0;
@@ -36,7 +40,7 @@ module.exports = async function(req, res) {
     const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'photos.json'), 'utf8'));
     photoCount = Array.isArray(data.photos) ? data.photos.length : 0;
   } catch (e) {}
-  const baseUrl = process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : 'https://sumit-photo-album.vercel.app';
+  const baseUrl = 'https://sumit-photo-album.vercel.app';
   sendJson(200, {
     albums: [
       { id: 'default', title: 'My Photo Album', photoCount: photoCount, url: baseUrl + '/album.html?id=default' }
