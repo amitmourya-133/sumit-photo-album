@@ -49,7 +49,36 @@ function readJsonBody(req) {
   });
 }
 
-const session = require('../../lib/session');
+// Session verification using signed cookie
+function parseSessionCookie(req) {
+  const header = req.headers && req.headers.cookie;
+  if (!header) return null;
+  const m = header.match(/(?:^|;\\s*)session=([^;]+)/);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch (e) {
+    return m[1];
+  }
+}
+
+function verifySession(cookieValue) {
+  if (typeof cookieValue !== 'string' || cookieValue.indexOf('.') === -1) return null;
+  const idx = cookieValue.lastIndexOf('.');
+  const payload = cookieValue.slice(0, idx);
+  const hmac = cookieValue.slice(idx + 1);
+  const expected = crypto.createHmac('sha256', process.env.ADMIN_API_KEY || '').update(payload).digest('hex');
+  if (hmac.length !== expected.length) return null;
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(hmac, 'hex'), Buffer.from(expected, 'hex'))) return null;
+  } catch (e) {
+    return null;
+  }
+  let data;
+  try { data = JSON.parse(Buffer.from(payload, 'base64').toString('utf8')); } catch (e) { return null; }
+  if (!data || typeof data.exp !== 'number' || Date.now() > data.exp) return null;
+  return data;
+}
 
 module.exports = async (req, res) => {
   try {
@@ -62,10 +91,11 @@ module.exports = async (req, res) => {
       res.end();
       return;
     }
-    const s = await session.getSession(req);
+    // Check authentication via session cookie
+    const cookie = parseSessionCookie(req);
+    const s = verifySession(cookie);
     if (!s) {
-      sendJson(res, 401, { error: 'Unauthorized' });
-      return;
+      return sendJson(res, 401, { error: 'Unauthorized' });
     }
     if (req.method !== 'POST') {
       sendJson(res, 405, { error: 'Method not allowed. Use POST.' });

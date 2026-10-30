@@ -23,9 +23,7 @@ module.exports = async function(req, res) {
   if (req.method !== 'GET') {
     return sendJson(405, { error: 'Method not allowed' });
   }
-  const s = await session.getSession(req);
-  if (!s) {
-    return sendJson(401, { authenticated: false });
-  }
-  sendJson(200, { authenticated: true, username: s.u });
+  const s = await session.requireAuthAsync(req, res);
+  if (!s) return; // Already sent 401
+  sendJson(200, { authenticated: true, username: s.u, role: s.r || 'user' });
 };

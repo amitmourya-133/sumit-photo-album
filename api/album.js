@@ -1,5 +1,6 @@
 const redis = require('../lib/redis-rest');
 const crypto = require('crypto');
+const session = require('../lib/session');
 
 const CHUNK_SIZE = 350;
 const MAX_PHOTOS = 5000;
@@ -15,7 +16,11 @@ function sendJson(res, status, payload) {
   res.end(body);
 }
 
-async function readJsonBody(req) {
+function isHttpUrl(value) {
+  return typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'));
+}
+
+function readJsonBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -42,12 +47,6 @@ async function readJsonBody(req) {
   });
 }
 
-function isHttpUrl(value) {
-  return typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'));
-}
-
-const session = require('../lib/session');
-
 module.exports = async (req, res) => {
   try {
     if (req.method === 'OPTIONS') {
@@ -65,16 +64,18 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      const s = await session.getSession(req);
-      if (!s) {
-        sendJson(res, 401, { error: 'Unauthorized' });
-        return;
-      }
+      const s = await session.requireAuthAsync(req, res);
+      if (!s) return; // Already sent 401
+
       let body;
       try {
         body = await readJsonBody(req);
       } catch (e) {
         sendJson(res, 400, { error: e.message });
+        return;
+      }
+      if (!body) {
+        sendJson(res, 400, { error: 'Empty body' });
         return;
       }
       const { title, photos, music, settings } = body || {};
@@ -83,7 +84,7 @@ module.exports = async (req, res) => {
         return;
       }
       if (photos.length > MAX_PHOTOS) {
-        sendJson(res, 400, { error: `Album supports up to ${MAX_PHOTOS} photos.` });
+        sendJson(res, 400, { error: 'Album supports up to ' + MAX_PHOTOS + ' photos.' });
         return;
       }
       if (!photos.every(isHttpUrl)) {
@@ -116,6 +117,7 @@ module.exports = async (req, res) => {
           photoCount: photos.length,
           chunked: true,
           chunkCount: chunks.length,
+          ownerId: s.u,
           music: music || null,
           settings: settingsSafe,
           createdAt: new Date().toISOString()
@@ -130,11 +132,22 @@ module.exports = async (req, res) => {
           id,
           title: titleSafe,
           photos,
+          ownerId: s.u,
           music: music || null,
           settings: settingsSafe,
           createdAt: new Date().toISOString()
         };
         await redis.setJSON(`album:${id}`, album);
+      }
+
+      // Associate album with user's album list
+      try {
+        const userAlbumsKey = `user:albums:${s.u}`;
+        const existing = await redis.getJSON(userAlbumsKey) || [];
+        existing.push(id);
+        await redis.setJSON(userAlbumsKey, existing);
+      } catch (e) {
+        // Best effort
       }
 
       const url = `https://${req.headers.host || 'sumit-photo-album.vercel.app'}/album/${id}`;
@@ -143,13 +156,86 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'GET') {
-      sendJson(res, 200, { ok: true });
+      // Always require authentication for album access
+      const s = await session.requireAuthAsync(req, res);
+      if (!s) return; // Already sent 401
+
+      if (!req.query || !req.query.id) {
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+      const id = req.query.id;
+      // First, try to get the full album object (non-chunked)
+      const album = await redis.getJSON(`album:${id}`);
+      if (album && album.photos && !album.chunked) {
+        // Non-chunked album: verify ownership before serving
+        const isOwned = album.ownerId === s.u;
+        const isPublic = !album.ownerId;
+        const isAdmin = s.r === 'admin';
+        if (!isOwned && !isPublic && !isAdmin) {
+          sendJson(res, 403, { error: 'Access denied. This album is private.' });
+          return;
+        }
+        sendJson(res, 200, {
+          id: album.id,
+          title: album.title,
+          photos: album.photos,
+          music: album.music,
+          settings: album.settings,
+          createdAt: album.createdAt
+        });
+        return;
+      }
+      // Chunked or meta-based album: get metadata and verify ownership
+      const meta = (await redis.getJSON(`album:${id}:meta`)) || album;
+      if (!meta || !meta.id) {
+        sendJson(res, 404, { error: 'Album not found' });
+        return;
+      }
+      // Verify ownership: user must own the album or it must be public (no owner)
+      const isOwned = meta.ownerId === s.u;
+      const isPublic = !meta.ownerId;
+      const isAdmin = s.r === 'admin';
+      if (!isOwned && !isPublic && !isAdmin) {
+        sendJson(res, 403, { error: 'Access denied. This album is private.' });
+        return;
+      }
+      const chunksCount = meta.chunkCount || 0;
+      let photos = [];
+      if (chunksCount > 0) {
+        const commands = [];
+        for (let c = 0; c < chunksCount; c++) commands.push(['get', `album:${id}:chunk:${c}`]);
+        const results = await redis.pipeline(commands);
+        for (const raw of results) {
+          if (typeof raw === 'string') {
+            try {
+              const chunk = JSON.parse(raw);
+              if (Array.isArray(chunk)) photos = photos.concat(chunk);
+            } catch (e) {
+              // ignore malformed chunk
+            }
+          }
+        }
+      }
+      if (!photos.length) photos = meta.photos || [];
+      sendJson(res, 200, {
+        id: meta.id,
+        title: meta.title,
+        photos,
+        music: meta.music,
+        settings: meta.settings,
+        createdAt: meta.createdAt
+      });
       return;
     }
 
     sendJson(res, 405, { error: 'Method not allowed. Use POST.' });
   } catch (error) {
-    console.error('api/album failed:', error && error.message ? error.message : 'unknown');
-    sendJson(res, 500, { error: error && error.message ? error.message : 'Failed to create album' });
+    try {
+      if (!res.headersSent) sendJson(res, 500, { error: error && error.message ? error.message : 'Failed to process album' });
+      else res.end();
+    } catch (e) {
+      res.end();
+    }
   }
 };
