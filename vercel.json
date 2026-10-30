@@ -31,6 +31,7 @@
     { "src": "/api/albums", "dest": "/api/albums.js" },
     { "src": "/login", "dest": "/login.html" },
     { "src": "/register", "dest": "/register.html" },
+    { "src": "/create", "dest": "/create.html" },
     { "src": "/album/([a-zA-Z0-9_-]+)", "dest": "/album.html?id=$1" }
   ]
 }
